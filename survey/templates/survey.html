@@ -1,0 +1,193 @@
+{% load static %}
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>설문조사 - 정책 추천 서비스</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="header-top">
+          <button class="btn-icon" onclick="goBack()">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+          <h2 style="margin: 0">맞춤 정책 찾기</h2>
+          <div style="width: 44px"></div>
+        </div>
+      </div>
+
+      <div class="survey-container">
+        <div class="survey-progress">
+          <div class="progress-bar">
+            <div
+              id="progressFill"
+              class="progress-fill"
+              style="width: 25%"
+            ></div>
+          </div>
+          <p id="progressText" class="progress-text">1 / 4 단계</p>
+        </div>
+
+        <div id="surveyContent"></div>
+
+        <div style="display: flex; gap: 12px; margin-top: 32px">
+          <button
+            id="prevBtn"
+            class="btn-secondary"
+            onclick="previousStep()"
+            style="display: none"
+          >
+            이전
+          </button>
+          <button
+            id="nextBtn"
+            class="btn-primary"
+            onclick="nextStep()"
+            disabled
+          >
+            다음
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Home Button -->
+    <button
+      id="floatingHome"
+      class="floating-home"
+      onclick="window.location.href = 'index.html'"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+      </svg>
+    </button>
+
+    <script src="{% static 'js/data.js' %}"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    <script>
+      let currentStep = 1;
+      let answers = {};
+
+      function renderSurvey() {
+        const question = SURVEY_QUESTIONS[currentStep - 1];
+        const content = document.getElementById("surveyContent");
+
+        content.innerHTML = `
+        <div class="survey-question">
+          <h3 class="question-title">${question.question}</h3>
+          <div class="options-list">
+            ${question.options
+              .map(
+                (option, index) => `
+              <button 
+                class="option-btn" 
+                data-value="${option}"
+                onclick="selectOption('${option.replace(/'/g, "\\'")}')"
+              >
+                ${option}
+              </button>
+            `,
+              )
+              .join("")}
+          </div>
+        </div>
+      `;
+
+        // 이전 답변이 있으면 선택 표시
+        if (answers[currentStep]) {
+          const selectedBtn = content.querySelector(
+            `[data-value="${answers[currentStep]}"]`,
+          );
+          if (selectedBtn) {
+            selectedBtn.classList.add("selected");
+          }
+          document.getElementById("nextBtn").disabled = false;
+        }
+
+        // 진행률 업데이트
+        const progress = (currentStep / SURVEY_QUESTIONS.length) * 100;
+        document.getElementById("progressFill").style.width = progress + "%";
+        document.getElementById("progressText").textContent =
+          `${currentStep} / ${SURVEY_QUESTIONS.length} 단계`;
+
+        // 버튼 표시/숨김
+        document.getElementById("prevBtn").style.display =
+          currentStep === 1 ? "none" : "block";
+        document.getElementById("nextBtn").textContent =
+          currentStep === SURVEY_QUESTIONS.length ? "결과 보기" : "다음";
+      }
+
+      function selectOption(value) {
+        // 모든 버튼의 선택 해제
+        document.querySelectorAll(".option-btn").forEach((btn) => {
+          btn.classList.remove("selected");
+        });
+
+        // 선택한 버튼 활성화
+        const selectedBtn = document.querySelector(`[data-value="${value}"]`);
+        if (selectedBtn) {
+          selectedBtn.classList.add("selected");
+        }
+
+        // 답변 저장
+        answers[currentStep] = value;
+
+        // 다음 버튼 활성화
+        document.getElementById("nextBtn").disabled = false;
+      }
+
+      function nextStep() {
+        if (!answers[currentStep]) {
+          alert("답변을 선택해주세요.");
+          return;
+        }
+
+        if (currentStep === SURVEY_QUESTIONS.length) {
+          // 설문 완료
+          survey.saveAnswers(answers);
+          window.location.href = "/survey/result";
+        } else {
+          currentStep++;
+          renderSurvey();
+          document.getElementById("nextBtn").disabled = !answers[currentStep];
+        }
+      }
+
+      function previousStep() {
+        if (currentStep > 1) {
+          currentStep--;
+          renderSurvey();
+        }
+      }
+
+      // 초기 렌더링
+      document.addEventListener("DOMContentLoaded", () => {
+        renderSurvey();
+      });
+    </script>
+  </body>
+</html>

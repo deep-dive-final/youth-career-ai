@@ -39,8 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'main',
     'chat',
-    'fit',
-    'detail',
+    'survey',
+    'policy',
 ]
 
 MIDDLEWARE = [
