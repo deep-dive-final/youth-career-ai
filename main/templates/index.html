@@ -1,0 +1,439 @@
+{% load static %}
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>정책 추천 서비스 - 청년을 위한 맞춤 정책</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <div class="header">
+        <div class="header-top">
+          <div class="header-left">
+            <button id="menuBtn" class="btn-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            <button
+              id="profileBtn"
+              class="profile-btn"
+              onclick="handleProfileClick()"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </button>
+            <div class="user-info">
+              <p>안녕하세요 👋</p>
+              <h2 id="userName">게스트님</h2>
+            </div>
+          </div>
+          <div class="header-right">
+            <button
+              id="loginBtn"
+              class="btn-login"
+              onclick="window.location.href = 'login.html'"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                <polyline points="10 17 15 12 10 7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+              </svg>
+              로그인
+            </button>
+            <button
+              class="btn-icon notification-btn"
+              onclick="handleNotificationClick()"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              </svg>
+              <span id="notificationBadge" class="notification-badge"></span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          class="survey-banner"
+          onclick="window.location.href = 'survey.html'"
+        >
+          <h1>✨ 맞춤 정책을</h1>
+          <h1>찾아드릴게요!</h1>
+        </button>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="quick-actions">
+        <h3>🎯 바로가기</h3>
+        <div class="action-grid">
+          <a href="search.html" class="action-item">
+            <div class="action-icon">🔍</div>
+            <p>검색</p>
+          </a>
+          <a href="saved.html" class="action-item">
+            <div class="action-icon">📌</div>
+            <p>저장목록</p>
+          </a>
+          <a href="calendar.html" class="action-item">
+            <div class="action-icon">📅</div>
+            <p>캘린더</p>
+          </a>
+          <a href="chat.html" class="action-item">
+            <div class="action-icon">💬</div>
+            <p>AI상담</p>
+          </a>
+        </div>
+      </div>
+
+      <!-- Recommended Policies -->
+      <div class="policy-section">
+        <div class="section-header">
+          <h3>🌟 추천 정책</h3>
+          <button
+            class="btn-text"
+            onclick="window.location.href = 'search.html'"
+          >
+            전체보기
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+        <div id="recommendedPolicies" class="policy-scroll"></div>
+      </div>
+
+      <!-- Popular Policies -->
+      <div class="policy-section">
+        <div class="section-header">
+          <h3>🔥 인기 정책</h3>
+          <button
+            class="btn-text"
+            onclick="window.location.href = 'search.html'"
+          >
+            전체보기
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+        <div id="popularPolicies" class="policy-scroll"></div>
+      </div>
+
+      <!-- Deadline Soon -->
+      <div class="policy-section">
+        <div class="section-header">
+          <h3>⏰ 마감임박</h3>
+          <button
+            class="btn-text"
+            onclick="window.location.href = 'search.html'"
+          >
+            전체보기
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+        <div id="deadlinePolicies" class="policy-scroll"></div>
+      </div>
+    </div>
+
+    <!-- Mobile Sidebar -->
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <button id="sidebarClose" class="sidebar-close">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+        <h2>메뉴</h2>
+        <div class="sidebar-user">
+          <div class="sidebar-avatar">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </div>
+          <div>
+            <p style="margin: 0; font-size: 14px" id="sidebarUserName">
+              게스트
+            </p>
+            <p
+              style="margin: 0; font-size: 12px; opacity: 0.8"
+              id="sidebarUserEmail"
+            >
+              guest@example.com
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          홈
+        </a>
+        <a href="survey.html" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+            ></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+          설문조사
+        </a>
+        <a href="search.html" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+          정책 검색
+        </a>
+        <a href="saved.html" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+          </svg>
+          저장 목록
+        </a>
+        <a href="calendar.html" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          일정 캘린더
+        </a>
+        <a href="chat.html" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+            ></path>
+          </svg>
+          AI 상담
+        </a>
+        <div class="nav-divider"></div>
+        <a href="profile.html" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          프로필
+        </a>
+        <a href="notifications.html" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          알림
+        </a>
+        <a href="application-history.html" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+            ></path>
+          </svg>
+          신청 내역
+        </a>
+        <div class="nav-divider"></div>
+        <a href="admin-login.html" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+          관리자
+        </a>
+        <button onclick="handleLogout()" class="nav-item">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          로그아웃
+        </button>
+      </nav>
+    </div>
+
+    <script src="{% static 'js/data.js' %}"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    <script>
+      // 페이지별 초기화
+      document.addEventListener("DOMContentLoaded", () => {
+        // 정책 목록 렌더링
+        const topPolicies = POLICIES.slice(0, 3);
+        renderPolicyList("recommendedPolicies", topPolicies);
+        renderPolicyList("popularPolicies", POLICIES.slice(1, 4));
+        renderPolicyList("deadlinePolicies", POLICIES.slice(0, 3));
+      });
+    </script>
+  </body>
+</html>
