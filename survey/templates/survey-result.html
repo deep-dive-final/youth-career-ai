@@ -1,0 +1,198 @@
+{% load static %}
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>설문 결과 - 정책 추천 서비스</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="header-top">
+          <button
+            class="btn-icon"
+            onclick="window.location.href = 'index.html'"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+          <h2 style="margin: 0">맞춤 추천 결과</h2>
+          <div style="width: 44px"></div>
+        </div>
+      </div>
+
+      <div class="survey-container">
+        <!-- Celebration -->
+        <div style="text-align: center; margin-bottom: 32px">
+          <div style="font-size: 64px; margin-bottom: 16px">🎉</div>
+          <h1 style="margin-bottom: 8px">분석이 완료되었어요!</h1>
+          <p style="color: #7a8a9e; font-size: 14px">
+            당신에게 딱 맞는 정책을 찾았습니다
+          </p>
+        </div>
+
+        <!-- Results Summary -->
+        <div
+          style="
+            background: linear-gradient(to right, #a8e6cf, #7ec4cf);
+            border-radius: 24px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+          "
+        >
+          <p
+            style="
+              color: white;
+              font-size: 14px;
+              margin-bottom: 8px;
+              opacity: 0.9;
+            "
+          >
+            총 매칭 정책
+          </p>
+          <p
+            style="color: white; font-size: 48px; font-weight: bold; margin: 0"
+            id="matchCount"
+          >
+            12개
+          </p>
+        </div>
+
+        <!-- Survey Answers -->
+        <div
+          style="
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 24px;
+          "
+        >
+          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 16px">
+            📋 나의 정보
+          </h3>
+          <div id="surveyAnswers"></div>
+        </div>
+
+        <!-- Recommended Policies -->
+        <div style="margin-bottom: 24px">
+          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 16px">
+            ✨ 추천 정책
+          </h3>
+          <div
+            id="recommendedPolicies"
+            style="display: flex; flex-direction: column; gap: 16px"
+          ></div>
+        </div>
+
+        <div style="display: flex; gap: 12px">
+          <button
+            class="btn-secondary"
+            onclick="window.location.href = 'survey.html'"
+          >
+            다시 설문하기
+          </button>
+          <button
+            class="btn-primary"
+            onclick="window.location.href = 'index.html'"
+          >
+            홈으로
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Home Button -->
+    <button
+      id="floatingHome"
+      class="floating-home"
+      onclick="window.location.href = 'index.html'"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+      </svg>
+    </button>
+
+    <script src="{% static 'js/data.js' %}"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const answers = survey.getAnswers();
+
+        if (Object.keys(answers).length === 0) {
+          // 설문을 하지 않았으면 설문 페이지로
+          window.location.href = "survey.html";
+          return;
+        }
+
+        // 설문 답변 표시
+        const answersContainer = document.getElementById("surveyAnswers");
+        answersContainer.innerHTML = SURVEY_QUESTIONS.map(
+          (q, index) => `
+        <div style="margin-bottom: 16px; padding-bottom: 16px; ${index < SURVEY_QUESTIONS.length - 1 ? "border-bottom: 1px solid #f0f4f8;" : ""}">
+          <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">${q.question}</p>
+          <p style="font-size: 14px; color: #2d3748; margin: 0;">${answers[index + 1] || "-"}</p>
+        </div>
+      `,
+        ).join("");
+
+        // 추천 정책 표시 (상위 5개)
+        const topPolicies = POLICIES.slice(0, 5);
+        const policiesContainer = document.getElementById(
+          "recommendedPolicies",
+        );
+
+        policiesContainer.innerHTML = topPolicies
+          .map(
+            (policy) => `
+        <a href="/policy?id=${policy.id}" style="text-decoration: none;">
+          <div style="background: white; border-radius: 24px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)'">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+              <span style="padding: 4px 12px; background: linear-gradient(to right, #a8e6cf, #7ec4cf); color: white; border-radius: 50px; font-size: 12px;">${policy.category}</span>
+              <span style="padding: 4px 12px; background: #ff7eb9; color: white; border-radius: 50px; font-size: 12px;">${policy.dday}</span>
+            </div>
+            <h4 style="font-size: 16px; color: #2d3748; margin-bottom: 8px;">${policy.name}</h4>
+            <p style="font-size: 20px; color: #7ec4cf; margin-bottom: 12px;">${policy.amount}</p>
+            <div style="background: linear-gradient(to bottom right, #f8f9fd, #e8f4f8); border-radius: 16px; padding: 12px; margin-bottom: 12px; font-size: 13px; color: #7a8a9e;">
+              💬 ${policy.comment}
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 12px; color: #a0aec0;">매칭률</span>
+              <span style="font-size: 16px; color: #7ec4cf; font-weight: bold;">${policy.match}%</span>
+            </div>
+          </div>
+        </a>
+      `,
+          )
+          .join("");
+
+        document.getElementById("matchCount").textContent =
+          `${topPolicies.length}개`;
+      });
+    </script>
+  </body>
+</html>

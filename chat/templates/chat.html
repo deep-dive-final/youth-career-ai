@@ -1,0 +1,347 @@
+{% load static %}
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 상담 - 정책 추천 서비스</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+    <style>
+      .chat-container {
+        height: calc(100vh - 180px);
+        display: flex;
+        flex-direction: column;
+      }
+      .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .chat-message {
+        display: flex;
+        gap: 12px;
+        animation: slideIn 0.3s ease;
+      }
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .chat-message.user {
+        flex-direction: row-reverse;
+      }
+      .chat-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .chat-avatar.ai {
+        background: linear-gradient(to bottom right, #a8e6cf, #7ec4cf);
+      }
+      .chat-avatar.user {
+        background: linear-gradient(to bottom right, #a29bfe, #6c5ce7);
+      }
+      .chat-bubble {
+        max-width: 70%;
+        padding: 12px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .chat-bubble.ai {
+        background: white;
+        color: #2d3748;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+      .chat-bubble.user {
+        background: linear-gradient(to right, #a29bfe, #6c5ce7);
+        color: white;
+      }
+      .chat-input-wrapper {
+        padding: 16px 20px;
+        background: white;
+        border-top: 1px solid #e2e8f0;
+      }
+      .chat-input-form {
+        display: flex;
+        gap: 8px;
+      }
+      .chat-input {
+        flex: 1;
+        padding: 12px 16px;
+        border-radius: 50px;
+        border: 1px solid #e2e8f0;
+        font-size: 14px;
+        font-family: "Jua", sans-serif;
+      }
+      .chat-send-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(to bottom right, #a8e6cf, #7ec4cf);
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s;
+      }
+      .chat-send-btn:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+      .chat-send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .quick-questions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 0 20px 16px;
+      }
+      .quick-question-btn {
+        padding: 8px 16px;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 50px;
+        font-size: 13px;
+        font-family: "Jua", sans-serif;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .quick-question-btn:hover {
+        border-color: #7ec4cf;
+        background: #f8f9fd;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="header-top">
+          <button class="btn-icon" onclick="goBack()">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+          <div style="flex: 1; text-align: center">
+            <h2 style="margin: 0">AI 상담</h2>
+            <p style="margin: 0; font-size: 12px; color: #a0aec0">
+              24시간 언제나 상담 가능
+            </p>
+          </div>
+          <div style="width: 44px"></div>
+        </div>
+      </div>
+
+      <div class="chat-container">
+        <div id="chatMessages" class="chat-messages"></div>
+
+        <div class="quick-questions" id="quickQuestions">
+          <button
+            class="quick-question-btn"
+            onclick="sendMessage('청년 월세 지원사업에 대해 알려줘')"
+          >
+            청년 월세 지원사업
+          </button>
+          <button
+            class="quick-question-btn"
+            onclick="sendMessage('나이 25세에 받을 수 있는 정책은?')"
+          >
+            나이별 정책
+          </button>
+          <button
+            class="quick-question-btn"
+            onclick="sendMessage('취업 관련 정책 추천해줘')"
+          >
+            취업 정책
+          </button>
+          <button
+            class="quick-question-btn"
+            onclick="sendMessage('신청 방법이 궁금해')"
+          >
+            신청 방법
+          </button>
+        </div>
+
+        <div class="chat-input-wrapper">
+          <form class="chat-input-form" onsubmit="handleSubmit(event)">
+            <input
+              type="text"
+              id="chatInput"
+              class="chat-input"
+              placeholder="궁금한 점을 물어보세요..."
+              autocomplete="off"
+            />
+            <button type="submit" id="sendBtn" class="chat-send-btn">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                stroke-width="2"
+              >
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Home Button -->
+    <button
+      id="floatingHome"
+      class="floating-home"
+      onclick="window.location.href = 'index.html'"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+      </svg>
+    </button>
+
+    <script src="{% static 'js/data.js' %}"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    <script>
+      const chatMessages = document.getElementById("chatMessages");
+      const chatInput = document.getElementById("chatInput");
+      const sendBtn = document.getElementById("sendBtn");
+      const quickQuestions = document.getElementById("quickQuestions");
+
+      // 초기 메시지
+      function addWelcomeMessage() {
+        addAIMessage(
+          "안녕하세요! 👋\n정책 추천 AI 상담사입니다.\n\n궁금하신 정책이나 신청 방법에 대해 물어보세요!",
+        );
+      }
+
+      function addMessage(text, isUser) {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `chat-message ${isUser ? "user" : "ai"}`;
+
+        messageDiv.innerHTML = `
+        <div class="chat-avatar ${isUser ? "user" : "ai"}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+            ${
+              isUser
+                ? '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>'
+                : '<path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"></path>'
+            }
+          </svg>
+        </div>
+        <div class="chat-bubble ${isUser ? "user" : "ai"}">${text.replace(/\n/g, "<br>")}</div>
+      `;
+
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      function addAIMessage(text) {
+        addMessage(text, false);
+      }
+
+      function addUserMessage(text) {
+        addMessage(text, true);
+      }
+
+      function handleSubmit(event) {
+        event.preventDefault();
+        const text = chatInput.value.trim();
+
+        if (!text) return;
+
+        sendMessage(text);
+        chatInput.value = "";
+      }
+
+      function sendMessage(text) {
+        // 빠른 질문 버튼 숨기기
+        quickQuestions.style.display = "none";
+
+        addUserMessage(text);
+
+        // 입력 비활성화
+        sendBtn.disabled = true;
+        chatInput.disabled = true;
+
+        // AI 응답 시뮬레이션
+        setTimeout(() => {
+          const response = getAIResponse(text);
+          addAIMessage(response);
+
+          sendBtn.disabled = false;
+          chatInput.disabled = false;
+          chatInput.focus();
+        }, 1000);
+      }
+
+      function getAIResponse(userMessage) {
+        const lowerMessage = userMessage.toLowerCase();
+
+        // 키워드 기반 응답
+        if (lowerMessage.includes("월세") || lowerMessage.includes("주거")) {
+          return "청년 월세 지원사업을 추천드립니다! 💰\n\n만 19~34세 무주택 청년에게 월 최대 20만원씩 12개월간 지원합니다.\n\n• 지원 금액: 최대 240만원\n• 마감: D-5 (서둘러주세요!)\n• 매칭률: 95%\n\n자세한 내용은 정책 상세 페이지를 확인해주세요!";
+        }
+
+        if (lowerMessage.includes("취업") || lowerMessage.includes("일자리")) {
+          return "취업 관련 추천 정책입니다! 💼\n\n1. 청년도약계좌\n   - 5년간 저축 시 최대 5,000만원\n   - 매칭률 88%\n\n2. 청년 내일채움공제\n   - 2년 근속 시 1,200만원\n   - 매칭률 82%\n\n3. 청년 일자리 도약 장려금\n   - 월 80만원씩 12개월\n   - 매칭률 75%\n\n원하시는 정책을 선택해서 확인해보세요!";
+        }
+
+        if (lowerMessage.includes("신청") || lowerMessage.includes("방법")) {
+          return '정책 신청 방법을 안내드립니다! 📝\n\n1. 원하는 정책을 선택하세요\n2. 정책 상세 페이지에서 "신청하기" 클릭\n3. 필요 서류를 준비하세요\n   (주민등록등본, 소득증명서 등)\n4. 신청서를 작성하고 제출\n5. 결과는 알림으로 받으실 수 있어요\n\n로그인 후 이용 가능합니다!';
+        }
+
+        if (lowerMessage.includes("나이") || lowerMessage.match(/\d{2}세/)) {
+          return "나이별 맞춤 정책을 추천드립니다! 🎯\n\n만 19~24세:\n• 청년 문화패스 (연 10만원)\n\n만 25~34세:\n• 청년 월세 지원사업\n• 청년도약계좌\n• 청년 내일채움공제\n\n설문조사를 완료하시면 더 정확한 맞춤 추천을 받으실 수 있어요!";
+        }
+
+        if (lowerMessage.includes("안녕") || lowerMessage.includes("처음")) {
+          return "반갑습니다! 😊\n\n저는 청년 정책 추천 AI입니다.\n\n다음과 같은 도움을 드릴 수 있어요:\n• 정책 정보 안내\n• 맞춤 정책 추천\n• 신청 방법 안내\n• 자격 요건 확인\n\n궁금하신 점을 편하게 물어보세요!";
+        }
+
+        // 기본 응답
+        return '죄송하지만, 해당 질문에 대한 정확한 답변을 드리기 어렵습니다. 😅\n\n다음과 같이 질문해보세요:\n• "청년 월세 지원사업에 대해 알려줘"\n• "취업 관련 정책 추천해줘"\n• "신청 방법이 궁금해"\n• "나이 25세에 받을 수 있는 정책은?"\n\n또는 검색 페이지에서 직접 찾아보실 수도 있어요!';
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        addWelcomeMessage();
+        chatInput.focus();
+      });
+    </script>
+  </body>
+</html>
