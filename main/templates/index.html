@@ -430,10 +430,63 @@
       document.addEventListener("DOMContentLoaded", () => {
         // 정책 목록 렌더링
         const topPolicies = POLICIES.slice(0, 3);
-        renderPolicyList("recommendedPolicies", topPolicies);
+        // renderPolicyList("recommendedPolicies", topPolicies);
         renderPolicyList("popularPolicies", POLICIES.slice(1, 4));
         renderPolicyList("deadlinePolicies", POLICIES.slice(0, 3));
+
+        // 추천 정책 데이터 바인딩 예시
+        renderPolicyListSample("recommendedPolicies");
       });
+
+      // 추천 정책 데이터 바인딩 예시
+      function renderPolicyListSample(containerId) {
+        // 정책 데이터 조회
+        fetch("/main/api/getPolicyData?type=1", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        })
+          .then((response) => response.json())
+          .then((result) => {
+            console.log(result);
+            renderPolicyListSampleCallback(containerId, result.data);
+          })
+          .catch((error) => {
+            console.error("Error fetching expense data:", error);
+          });
+      }
+
+      function renderPolicyListSampleCallback(containerId, data) {
+        // 데이터 바인딩 시킬 element 조회
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        let html = "";
+
+        data.forEach((policy) => {
+          console.log("policy", policy);
+          html += `
+<a href="/policy?id=1" class="policy-card">
+  <div class="policy-header">
+    <span class="policy-category">${policy["type"]}</span>
+    <span class="policy-dday">${policy["start-date"]}</span>
+  </div>
+  <h4>${policy["title"]}</h4>
+  <p class="policy-amount">${policy["desc"]}</p>
+  <div class="policy-comment">
+    💬 ${policy["ai-comment"]}
+  </div>
+  <div class="policy-match">
+    <span class="match-label">매칭률</span>
+    <span class="match-score">${policy["match-percent"]}%</span>
+  </div>
+</a>
+`;
+        });
+
+        container.innerHTML = html;
+      }
     </script>
   </body>
 </html>
