@@ -16,7 +16,7 @@ def getPolicyData(request):
         type = "청년" if request.GET.get('type') == 1 else "취업"
 
         db = getMongoDbClient()
-        collection = db['policy']   # 컬렉션(테이블 개념) 이름
+        collection = db['test']   # 컬렉션(테이블 개념) 이름
 
         # MongoDB 쿼리 실행
         filtered = list(collection.find({"type": type}))

@@ -12,7 +12,12 @@ class MongoSingleton:
             cls.__instance = client
         return cls.__instance
 
-# 사용 예시
+# youth_career_ai_db 데이터베이스에 접근하는 함수
 def getMongoDbClient():
     client = MongoSingleton()
-    return client['career']
+    return client['youth_career_ai_db']
+
+# db_name 데이터베이스에 접근하는 함수
+def getMongoDbClientByName(db_name):
+    client = MongoSingleton()
+    return client[db_name]
