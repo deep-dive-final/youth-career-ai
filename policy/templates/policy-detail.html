@@ -12,7 +12,7 @@
     <div class="container">
       <div class="header">
         <div class="header-top">
-          <button class="btn-icon" onclick="goBack()">
+          <button class="btn-icon" onclick="history.back()">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="20"
@@ -27,7 +27,7 @@
             </svg>
           </button>
           <h2 style="margin: 0">정책 상세</h2>
-          <button id="saveBtn" class="btn-icon" onclick="toggleSave()">
+          <button id="saveBtn" class="btn-icon">
             <svg
               id="saveIcon"
               xmlns="http://www.w3.org/2000/svg"
@@ -44,15 +44,134 @@
         </div>
       </div>
 
-      <div id="policyContent" style="padding: 0 20px 100px"></div>
+      <div id="policyContent" style="padding: 0 20px 100px">
+        {% if policy %}
+        <div
+          style="
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 16px;
+          "
+        >
+          <div style="display: flex; gap: 8px; margin-bottom: 12px">
+            <span
+              style="
+                padding: 4px 12px;
+                background: linear-gradient(to right, #a8e6cf, #7ec4cf);
+                color: white;
+                border-radius: 50px;
+                font-size: 12px;
+              "
+            >
+              {{ policy.category }}
+            </span>
+          </div>
+          <h1 style="font-size: 24px; color: #2d3748; margin-bottom: 12px">
+            {{ policy.policy_name }}
+          </h1>
+          <p style="font-size: 14px; color: #a0aec0">
+            조회수: {{ policy.view_count }}
+          </p>
+        </div>
+
+        <div
+          style="
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 16px;
+          "
+        >
+          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px">
+            📝 상세 정보
+          </h3>
+          <p
+            style="color: #7a8a9e; font-size: 14px; line-height: 1.6; margin: 0"
+          >
+            {{ policy.content }}
+          </p>
+        </div>
+
+        <div
+          style="
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 16px;
+          "
+        >
+          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px">
+            ℹ️ 추가 정보
+          </h3>
+          <div style="margin-bottom: 12px">
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">
+              신청 가능 기간
+            </p>
+            <p style="font-size: 14px; color: #2d3748; margin: 0">
+              {{ policy.apply_start_date }} ~ {{ policy.apply_end_date }}
+            </p>
+          </div>
+          <div style="margin-bottom: 12px">
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">
+              정보 출처
+            </p>
+            <p style="font-size: 14px; color: #2d3748; margin: 0">
+              {{ policy.source }}
+            </p>
+          </div>
+          <div>
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">
+              공식 홈페이지
+            </p>
+            <a
+              href="{{ policy.homepage }}"
+              target="_blank"
+              style="font-size: 14px; color: #7ec4cf; text-decoration: none"
+              >바로가기 (클릭)</a
+            >
+          </div>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 60px 20px">
+          <div style="font-size: 48px; margin-bottom: 16px">😕</div>
+          <h3 style="color: #2d3748; margin-bottom: 8px">
+            정책을 찾을 수 없습니다
+          </h3>
+          <p style="color: #a0aec0; font-size: 14px">
+            주소창의 ID가 DB에 있는지 확인해 주세요.
+          </p>
+        </div>
+        {% endif %}
+      </div>
     </div>
 
-    <!-- Floating Home Button -->
-    <button
-      id="floatingHome"
-      class="floating-home"
-      onclick="window.location.href = 'index.html'"
+    <div
+      style="
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 16px 20px;
+        background: white;
+        border-top: 1px solid #e2e8f0;
+      "
     >
+      <div style="max-width: 480px; margin: 0 auto">
+        <a
+          href="{{ policy.homepage }}"
+          target="_blank"
+          class="btn-primary"
+          style="text-align: center; display: block; text-decoration: none"
+          >신청하기</a
+        >
+      </div>
+    </div>
+
+    <button class="floating-home" onclick="window.location.href = '/'">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="24"
@@ -66,186 +185,5 @@
         <polyline points="9 22 9 12 15 12 15 22"></polyline>
       </svg>
     </button>
-
-    <!-- Apply Button Fixed at Bottom -->
-    <div
-      style="
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        padding: 16px 20px;
-        background: linear-gradient(to bottom right, #f8f9fd, #e8f4f8);
-        border-top: 1px solid #e2e8f0;
-      "
-    >
-      <div style="max-width: 480px; margin: 0 auto">
-        <button id="applyBtn" class="btn-primary" onclick="applyForPolicy()">
-          신청하기
-        </button>
-      </div>
-    </div>
-
-    <script src="{% static 'js/data.js' %}"></script>
-    <script src="{% static 'js/main.js' %}"></script>
-    <script>
-      let currentPolicy = null;
-
-      function renderPolicy(policy) {
-        if (!policy) {
-          document.getElementById("policyContent").innerHTML = `
-          <div style="text-align: center; padding: 60px 20px;">
-            <div style="font-size: 48px; margin-bottom: 16px;">😕</div>
-            <h3 style="color: #2d3748; margin-bottom: 8px;">정책을 찾을 수 없습니다</h3>
-            <p style="color: #a0aec0; font-size: 14px;">다른 정책을 확인해보세요</p>
-          </div>
-        `;
-          return;
-        }
-
-        currentPolicy = policy;
-
-        // 저장 상태 업데이트
-        updateSaveButton();
-
-        document.getElementById("policyContent").innerHTML = `
-        <!-- Header Card -->
-        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 16px;">
-          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-            <span style="padding: 4px 12px; background: linear-gradient(to right, #a8e6cf, #7ec4cf); color: white; border-radius: 50px; font-size: 12px;">${policy.category}</span>
-            <span style="padding: 4px 12px; background: #ff7eb9; color: white; border-radius: 50px; font-size: 12px;">${policy.dday}</span>
-          </div>
-          <h1 style="font-size: 24px; color: #2d3748; margin-bottom: 12px;">${policy.name}</h1>
-          <p style="font-size: 28px; color: #7ec4cf; font-weight: bold; margin-bottom: 16px;">${policy.amount}</p>
-          <div style="background: linear-gradient(to bottom right, #f8f9fd, #e8f4f8); border-radius: 16px; padding: 16px;">
-            <p style="font-size: 14px; color: #7a8a9e; margin: 0;">💬 ${policy.comment}</p>
-          </div>
-        </div>
-
-        <!-- Match Score -->
-        <div style="background: linear-gradient(to right, #a8e6cf, #7ec4cf); border-radius: 24px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 16px; text-align: center;">
-          <p style="color: white; font-size: 14px; margin-bottom: 4px; opacity: 0.9;">나와의 매칭률</p>
-          <p style="color: white; font-size: 36px; font-weight: bold; margin: 0;">${policy.match}%</p>
-        </div>
-
-        <!-- Description -->
-        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 16px;">
-          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px;">📝 정책 설명</h3>
-          <p style="color: #7a8a9e; font-size: 14px; line-height: 1.6; margin: 0;">${policy.description}</p>
-        </div>
-
-        <!-- Info Grid -->
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;">
-          <div style="background: white; border-radius: 20px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">지원 형태</p>
-            <p style="font-size: 16px; color: #2d3748; margin: 0;">${policy.type}</p>
-          </div>
-          <div style="background: white; border-radius: 20px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">소득 요건</p>
-            <p style="font-size: 16px; color: #2d3748; margin: 0;">${policy.income}</p>
-          </div>
-        </div>
-
-        <!-- Requirements -->
-        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 16px;">
-          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px;">✅ 신청 자격</h3>
-          <ul style="padding-left: 20px; margin: 0;">
-            ${policy.requirements
-              .map(
-                (req) => `
-              <li style="color: #7a8a9e; font-size: 14px; margin-bottom: 8px; line-height: 1.5;">${req}</li>
-            `,
-              )
-              .join("")}
-          </ul>
-        </div>
-
-        <!-- Documents -->
-        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 16px;">
-          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px;">📄 필요 서류</h3>
-          <ul style="padding-left: 20px; margin: 0;">
-            ${policy.documents
-              .map(
-                (doc) => `
-              <li style="color: #7a8a9e; font-size: 14px; margin-bottom: 8px; line-height: 1.5;">${doc}</li>
-            `,
-              )
-              .join("")}
-          </ul>
-        </div>
-
-        <!-- Additional Info -->
-        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 16px;">
-          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px;">ℹ️ 추가 정보</h3>
-          <div style="margin-bottom: 12px;">
-            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">신청 마감일</p>
-            <p style="font-size: 14px; color: #2d3748; margin: 0;">${formatDate(policy.deadline)}</p>
-          </div>
-          <div style="margin-bottom: 12px;">
-            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">주관 기관</p>
-            <p style="font-size: 14px; color: #2d3748; margin: 0;">${policy.agency}</p>
-          </div>
-          <div>
-            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">홈페이지</p>
-            <a href="${policy.link}" target="_blank" style="font-size: 14px; color: #7ec4cf; text-decoration: none;">${policy.link}</a>
-          </div>
-        </div>
-      `;
-      }
-
-      function updateSaveButton() {
-        const saveIcon = document.getElementById("saveIcon");
-        if (currentPolicy && savedPolicies.isSaved(currentPolicy.id)) {
-          saveIcon.setAttribute("fill", "currentColor");
-          saveIcon.style.color = "#7ec4cf";
-        } else {
-          saveIcon.setAttribute("fill", "none");
-          saveIcon.style.color = "#7a8a9e";
-        }
-      }
-
-      function toggleSave() {
-        if (!currentPolicy) return;
-
-        if (!user.isLoggedIn()) {
-          if (
-            confirm(
-              "로그인이 필요한 기능입니다. 로그인 페이지로 이동하시겠습니까?",
-            )
-          ) {
-            window.location.href = "login.html";
-          }
-          return;
-        }
-
-        const saved = savedPolicies.toggle(currentPolicy.id);
-        updateSaveButton();
-        alert(saved ? "저장되었습니다!" : "저장이 취소되었습니다.");
-      }
-
-      function applyForPolicy() {
-        if (!currentPolicy) return;
-
-        if (!user.isLoggedIn()) {
-          if (
-            confirm(
-              "로그인이 필요한 기능입니다. 로그인 페이지로 이동하시겠습니까?",
-            )
-          ) {
-            window.location.href = "login.html";
-          }
-          return;
-        }
-
-        window.location.href = `application-form.html?id=${currentPolicy.id}`;
-      }
-
-      // 초기화
-      document.addEventListener("DOMContentLoaded", () => {
-        const policyId = getUrlParameter("id");
-        const policy = getPolicyById(policyId);
-        renderPolicy(policy);
-      });
-    </script>
   </body>
 </html>
