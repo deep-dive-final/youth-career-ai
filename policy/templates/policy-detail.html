@@ -86,6 +86,57 @@
           "
         >
           <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px">
+            ✅ 신청 자격
+          </h3>
+          <div style="color: #7a8a9e; font-size: 14px; line-height: 1.8">
+            <p style="margin-bottom: 8px">
+              <strong>대상:</strong> {{ policy.eligibility.target }}
+            </p>
+            <p style="margin: 0">
+              <strong>기타 조건:</strong> {{ policy.eligibility.other }}
+            </p>
+          </div>
+        </div>
+
+        <div
+          style="
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 16px;
+          "
+        >
+          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px">
+            📄 필요 서류
+          </h3>
+          <ul
+            style="
+              color: #7a8a9e;
+              font-size: 14px;
+              line-height: 1.8;
+              padding-left: 20px;
+              margin: 0;
+            "
+          >
+            {% for doc in policy.required_document %}
+            <li>{{ doc }}</li>
+            {% empty %}
+            <li>상세 페이지 혹은 공식 홈페이지를 통해 확인해 주세요.</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div
+          style="
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 16px;
+          "
+        >
+          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px">
             📝 상세 정보
           </h3>
           <p
@@ -158,15 +209,48 @@
         padding: 16px 20px;
         background: white;
         border-top: 1px solid #e2e8f0;
+        display: flex;
+        gap: 12px;
+        z-index: 1000;
       "
     >
-      <div style="max-width: 480px; margin: 0 auto">
+      <div
+        style="
+          max-width: 480px;
+          margin: 0 auto;
+          width: 100%;
+          display: flex;
+          gap: 12px;
+        "
+      >
         <a
-          href="{{ policy.homepage }}"
-          target="_blank"
+          href="/policy/apply/?id={{ policy.policy_id }}"
           class="btn-primary"
-          style="text-align: center; display: block; text-decoration: none"
-          >신청하기</a
+          style="
+            flex: 1;
+            text-align: center;
+            display: block;
+            text-decoration: none;
+            background: #a8e6cf; /* 시안의 민트색 */
+            color: #2d3748;
+            font-weight: bold;
+          "
+          >📝 신청하기</a
+        >
+
+        <a
+          href="/policy/simulate/?id={{ policy.policy_id }}"
+          class="btn-primary"
+          style="
+            flex: 1;
+            text-align: center;
+            display: block;
+            text-decoration: none;
+            background: #ffaaa5; /* 시안의 코랄색 */
+            color: white;
+            font-weight: bold;
+          "
+          >🧪 시뮬레이션</a
         >
       </div>
     </div>
