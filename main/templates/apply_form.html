@@ -1,0 +1,102 @@
+{% load static %}
+<div
+  class="container"
+  style="padding: 20px; background: white; min-height: 100vh"
+>
+  <h2 style="font-size: 20px; margin-bottom: 20px">📝 신청서 작성</h2>
+
+  <div class="form-group" style="margin-bottom: 20px">
+    <label>신청인 성명</label>
+    <input
+      type="text"
+      placeholder="입력하세요"
+      style="
+        width: 100%;
+        padding: 15px;
+        border-radius: 15px;
+        border: 1px solid #eee;
+        background: #f8f9fa;
+      "
+    />
+  </div>
+
+  <div class="form-group" style="margin-bottom: 20px">
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      "
+    >
+      <label>신청 동기</label>
+      <button
+        onclick="askAI()"
+        style="
+          background: #8e8ffa;
+          color: white;
+          border: none;
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 12px;
+          cursor: pointer;
+        "
+      >
+        ✨ AI 보조
+      </button>
+    </div>
+    <textarea
+      id="ai_target_area"
+      placeholder="신청 동기를 입력하세요."
+      style="
+        width: 100%;
+        height: 150px;
+        padding: 15px;
+        border-radius: 15px;
+        border: 1px solid #eee;
+      "
+    ></textarea>
+  </div>
+
+  <button
+    style="
+      width: 100%;
+      background: #a8e6cf;
+      color: white;
+      border: none;
+      padding: 18px;
+      border-radius: 20px;
+      font-weight: bold;
+    "
+  >
+    작성 완료
+  </button>
+</div>
+
+<script>
+  async function askAI() {
+    const name = document.getElementById('user_name').value;
+    const textArea = document.getElementById('motivationText');
+
+    if (!name) return alert('성함을 먼저 입력해주세요!');
+
+    textArea.value = 'AI가 작성 중입니다... ✨';
+
+    const response = await fetch('/api/ai-generate/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token }}',
+      },
+      body: JSON.stringify({
+        name: name,
+        policy_name: '{{ policy.policy_name }}',
+      }),
+    });
+
+    const data = await response.json();
+    if (data.status === 'success') {
+      textArea.value = data.result;
+    }
+  }
+</script>
