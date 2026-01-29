@@ -5,269 +5,88 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>정책 상세 - 정책 추천 서비스</title>
+    <title>정책 상세 - {{ policy.policy_name }}</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}" />
   </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <div class="header-top">
-          <button class="btn-icon" onclick="history.back()">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-          </button>
-          <h2 style="margin: 0">정책 상세</h2>
-          <button id="saveBtn" class="btn-icon">
-            <svg
-              id="saveIcon"
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-            </svg>
-          </button>
-        </div>
+  <body style="background-color: #f8f9fa; font-family: 'Pretendard', sans-serif;">
+    <div class="container" style="max-width: 480px; margin: 0 auto; background: #f8f9fa; min-height: 100vh;">
+      <div class="header" style="padding: 20px; background: white; position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f1f3f5;">
+        <button class="btn-icon" onclick="history.back()" style="border: none; background: none; cursor: pointer;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </button>
+        <h2 style="margin: 0; font-size: 18px;">정책 상세</h2>
+        <button id="saveBtn" class="btn-icon" style="border: none; background: none; cursor: pointer;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+        </button>
       </div>
 
-      <div id="policyContent" style="padding: 0 20px 100px">
+      <div id="policyContent" style="padding: 20px 20px 120px">
         {% if policy %}
-        <div
-          style="
-            background: white;
-            border-radius: 24px;
-            padding: 24px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            margin-bottom: 16px;
-          "
-        >
+        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
           <div style="display: flex; gap: 8px; margin-bottom: 12px">
-            <span
-              style="
-                padding: 4px 12px;
-                background: linear-gradient(to right, #a8e6cf, #7ec4cf);
-                color: white;
-                border-radius: 50px;
-                font-size: 12px;
-              "
-            >
-              {{ policy.category }}
+            <span style="padding: 4px 12px; background: #a8e6cf; color: #2d3748; border-radius: 50px; font-size: 12px; font-weight: bold;">
+              {{ policy.category|default:"일자리" }}
             </span>
           </div>
-          <h1 style="font-size: 24px; color: #2d3748; margin-bottom: 12px">
+          <h1 style="font-size: 22px; color: #2d3748; margin: 0 0 12px 0; line-height: 1.4;">
             {{ policy.policy_name }}
           </h1>
-          <p style="font-size: 14px; color: #a0aec0">
-            조회수: {{ policy.view_count }}
-          </p>
+          <p style="font-size: 14px; color: #a0aec0; margin: 0;">조회수: {{ policy.view_count|default:"0" }}</p>
         </div>
 
-        <div
-          style="
-            background: white;
-            border-radius: 24px;
-            padding: 24px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            margin-bottom: 16px;
-          "
-        >
-          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px">
-            ✅ 신청 자격
-          </h3>
-          <div style="color: #7a8a9e; font-size: 14px; line-height: 1.8">
-            <p style="margin-bottom: 8px">
-              <strong>대상:</strong> {{ policy.eligibility.target }}
+        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
+          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">✅ 신청 자격</h3>
+          <div style="color: #4a5568; font-size: 14px; line-height: 1.8">
+            <p style="margin-bottom: 10px">
+              <strong>대상:</strong> {{ age_range|default:"만 18세 ~ 39세" }}
             </p>
             <p style="margin: 0">
-              <strong>기타 조건:</strong> {{ policy.eligibility.other }}
+              <strong>기타 조건:</strong> {{ target_info|default:"해당 지역 거주 청년" }}
             </p>
           </div>
         </div>
 
-        <div
-          style="
-            background: white;
-            border-radius: 24px;
-            padding: 24px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            margin-bottom: 16px;
-          "
-        >
-          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px">
-            📄 필요 서류
-          </h3>
-          <ul
-            style="
-              color: #7a8a9e;
-              font-size: 14px;
-              line-height: 1.8;
-              padding-left: 20px;
-              margin: 0;
-            "
-          >
-            {% for doc in policy.required_document %}
-            <li>{{ doc }}</li>
-            {% empty %}
-            <li>상세 페이지 혹은 공식 홈페이지를 통해 확인해 주세요.</li>
-            {% endfor %}
-          </ul>
+        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
+          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">📄 필요 서류</h3>
+          <div style="color: #718096; font-size: 14px; line-height: 1.8; white-space: pre-wrap;">{{ docs_info|default:"공식 홈페이지를 참고해 주세요." }}</div>
         </div>
 
-        <div
-          style="
-            background: white;
-            border-radius: 24px;
-            padding: 24px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            margin-bottom: 16px;
-          "
-        >
-          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px">
-            📝 상세 정보
-          </h3>
-          <p
-            style="color: #7a8a9e; font-size: 14px; line-height: 1.6; margin: 0"
-          >
-            {{ policy.content }}
+        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
+          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 12px 0;">📝 상세 정보</h3>
+          <p style="color: #718096; font-size: 14px; line-height: 1.6; margin: 0">
+            {{ policy.content|default:"정책에 대한 상세 설명입니다." }}
           </p>
         </div>
 
-        <div
-          style="
-            background: white;
-            border-radius: 24px;
-            padding: 24px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            margin-bottom: 16px;
-          "
-        >
-          <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 12px">
-            ℹ️ 추가 정보
-          </h3>
-          <div style="margin-bottom: 12px">
-            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">
-              신청 가능 기간
-            </p>
-            <p style="font-size: 14px; color: #2d3748; margin: 0">
-              {{ policy.apply_start_date }} ~ {{ policy.apply_end_date }}
-            </p>
+        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
+          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">ℹ️ 추가 정보</h3>
+          <div style="margin-bottom: 16px">
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">신청 가능 기간</p>
+            <p style="font-size: 14px; color: #2d3748; margin: 0; font-weight: bold;">{{ apply_period|default:"상시 모집" }}</p>
           </div>
-          <div style="margin-bottom: 12px">
-            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">
-              정보 출처
-            </p>
-            <p style="font-size: 14px; color: #2d3748; margin: 0">
-              {{ policy.source }}
-            </p>
+          <div style="margin-bottom: 16px">
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">정보 출처</p>
+            <p style="font-size: 14px; color: #2d3748; margin: 0">{{ policy.poly_biz_sj_nm|default:"중앙부처/지자체" }}</p>
           </div>
           <div>
-            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">
-              공식 홈페이지
-            </p>
-            <a
-              href="{{ policy.homepage }}"
-              target="_blank"
-              style="font-size: 14px; color: #7ec4cf; text-decoration: none"
-              >바로가기 (클릭)</a
-            >
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">공식 홈페이지</p>
+            <a href="{{ link|default:'#' }}" target="_blank" style="font-size: 14px; color: #7ec4cf; text-decoration: none; font-weight: bold;">바로가기 (클릭) ↗</a>
           </div>
         </div>
         {% else %}
-        <div style="text-align: center; padding: 60px 20px">
+        <div style="text-align: center; padding: 100px 20px">
           <div style="font-size: 48px; margin-bottom: 16px">😕</div>
-          <h3 style="color: #2d3748; margin-bottom: 8px">
-            정책을 찾을 수 없습니다
-          </h3>
-          <p style="color: #a0aec0; font-size: 14px">
-            주소창의 ID가 DB에 있는지 확인해 주세요.
-          </p>
+          <h3 style="color: #2d3748;">정책을 찾을 수 없습니다</h3>
         </div>
         {% endif %}
       </div>
     </div>
 
-    <div
-      style="
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        padding: 16px 20px;
-        background: white;
-        border-top: 1px solid #e2e8f0;
-        display: flex;
-        gap: 12px;
-        z-index: 1000;
-      "
-    >
-      <div
-        style="
-          max-width: 480px;
-          margin: 0 auto;
-          width: 100%;
-          display: flex;
-          gap: 12px;
-        "
-      >
-        <a
-          href="/policy/apply/?id={{ policy.policy_id }}"
-          class="btn-primary"
-          style="
-            flex: 1;
-            text-align: center;
-            display: block;
-            text-decoration: none;
-            background: #a8e6cf; /* 시안의 민트색 */
-            color: #2d3748;
-            font-weight: bold;
-          "
-          >📝 신청하기</a
-        >
-
-        <a
-          href="/policy/simulate/?id={{ policy.policy_id }}"
-          class="btn-primary"
-          style="
-            flex: 1;
-            text-align: center;
-            display: block;
-            text-decoration: none;
-            background: #ffaaa5; /* 시안의 코랄색 */
-            color: white;
-            font-weight: bold;
-          "
-          >🧪 시뮬레이션</a
-        >
+    <div style="position: fixed; bottom: 0; left: 0; right: 0; padding: 20px; background: white; border-top: 1px solid #f1f3f5; display: flex; gap: 12px; z-index: 1000;">
+      <div style="max-width: 480px; margin: 0 auto; width: 100%; display: flex; gap: 12px;">
+        <a href="/policy/apply/?id={{ policy.policy_id }}" style="flex: 1; text-align: center; background: #a8e6cf; color: #2d3748; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px;">📝 신청 서류 준비</a>
+        <a href="/policy/simulate/?id={{ policy.policy_id }}" style="flex: 1; text-align: center; background: #ffaaa5; color: white; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px;">🧪 시뮬레이션</a>
       </div>
     </div>
-
-    <button class="floating-home" onclick="window.location.href = '/'">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-        <polyline points="9 22 9 12 15 12 15 22"></polyline>
-      </svg>
-    </button>
   </body>
 </html>
