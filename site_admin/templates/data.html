@@ -1,0 +1,110 @@
+<html>
+  <head>
+    <title>Data Page</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+  <body>
+    <div id="container">
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 데이터 불러오기</h1>
+        <div>
+          <div>
+            페이지 번호: <input id="txt-page-num-start" type="text" style="width:40px;" class="border border-gray-300 px-1 py-0.5"></input> ~
+            <input id="txt-page-num-end" type="text" style="width:40px;" class="border border-gray-300 px-1 py-0.5"></input><br/>
+          </div>
+          <div class="pt-2">
+            페이지 사이즈: <input id="txt-page-size" type="text" style="width:40px;" class="border border-gray-300 px-1 py-0.5"></input>
+            <input id="btn-get-data" type="button" class="px-3 py-1 border border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-md hover:bg-gray-100" value="데이터 불러오기" />
+          </div>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h3 class="pb-3">✔ 데이터 검색 테스트 - e5</h3>
+        <div>
+          검색어: <input id="txt-e5" type="text" class="border border-gray-300 px-1 py-0.5"></input>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h3 class="pb-3">✔ 데이터 검색 테스트 - gemini</h3>
+        <div>
+          검색어: <input id="txt-gemini" type="text" class="border border-gray-300 px-1 py-0.5"></input>
+        </div>
+      </div>
+
+      <script>
+        var last_page_num = 0;
+
+        document.querySelector("#btn-get-data").onclick = function () {
+          if (
+            !confirm(
+              "데이터를 불러오시겠습니까? 기존 데이터에서 업데이트해야되는데, 지금은 중복으로 insert 됩니다.",
+            )
+          ) {
+            return;
+          }
+
+          last_page_num = parseInt(document.querySelector("#txt-page-num-end").value);
+          var page_num_start = document.querySelector("#txt-page-num-start").value;
+          var page_size = document.querySelector("#txt-page-size").value;
+          
+          fetch_data(page_num_start, page_size);
+        };
+        
+        function fetch_data (num, size) {
+          fetch(`/site_admin/api/importData?num=${num}&size=${size}`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              console.log(data);
+
+              next_num = parseInt(num) + 1;
+              if (next_num <= last_page_num) { 
+                fetch_data(next_num, size);
+              } else {
+                alert("데이터 불러오기 완료");
+              }
+            })
+            .catch((error) => {
+              console.error("Error fetching data:", error);
+            });
+        }
+
+        document.querySelector("#txt-e5").onkeydown = function(event) {
+          if (event.key !== 'Enter') 
+            return;
+
+          fetch("/site_admin/api/getDataE5?search-text=" + event.target.value, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          })
+            .then((response) => response.json())
+            .then((result) => {
+              console.log("result", result);
+              e5_callback(result.data);
+            })
+            .catch((error) => {
+              console.error("Error fetching expense data:", error);
+            });
+        };
+
+        function e5_callback(data) {
+          console.log("e5_callback data", data);
+
+        }
+
+        document.querySelector("#txt-gemini").onkeydown = function(event) {
+          if (event.key === 'Enter') {
+            // 엔터키를 눌렀을 때 수행할 동작
+            console.log('엔터키를 눌렀습니다.');
+          }
+        };
+      </script>
+    </div>
+  </body>
+</html>

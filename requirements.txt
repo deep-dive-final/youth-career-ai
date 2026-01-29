@@ -1,2 +1,4 @@
 pymongo
 python-dotenv
+sentence_transformers
+google-generativeai
