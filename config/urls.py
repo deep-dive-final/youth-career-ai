@@ -23,4 +23,5 @@ urlpatterns = [
     path('survey/', include("survey.urls")),
     path('policy/', include("policy.urls")),
     path('chat/', include("chat.urls")),
+    path('site_admin/', include("site_admin.urls")),
 ]
