@@ -11,5 +11,5 @@ urlpatterns = [
 
     path("policy/apply/form/", views.apply_form, name="apply_form"), # AI 신청서 페이지
 
-    path('policy/detail/', views.policy_detail, name='policy_detail'), #상세페이지
+    path("policy/", views.policy_detail, name='policy_detail'), #상세페이지
 ]
