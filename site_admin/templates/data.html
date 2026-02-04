@@ -1,6 +1,7 @@
 <html>
   <head>
     <title>Data Page</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   </head>
   <body>
@@ -19,15 +20,16 @@
         </div>
       </div>
       <div class="p-5 bg-white border-b border-gray-300">
-        <h3 class="pb-3">✔ 데이터 검색 테스트 - e5</h3>
-        <div>
-          검색어: <input id="txt-e5" type="text" class="border border-gray-300 px-1 py-0.5"></input>
+        <h3 class="pb-3">✔ 데이터 검색 테스트</h3>
+        <div class="pb-3">
+          <input type="radio" id="gemini" name="search-mode" checked="checked" />
+          <label style="cursor: pointer;" for="radio-gemini">gemini-embedding-001</label>
+          <input type="radio" id="e5" name="search-mode" />
+          <label style="cursor: pointer;" for="radio-e5">multilingual-e5-large</label>
         </div>
-      </div>
-      <div class="p-5 bg-white border-b border-gray-300">
-        <h3 class="pb-3">✔ 데이터 검색 테스트 - gemini</h3>
         <div>
-          검색어: <input id="txt-gemini" type="text" class="border border-gray-300 px-1 py-0.5"></input>
+          <input id="txt-search" type="text" class="border border-gray-300 px-1 py-0.5" style="width:90%" placeholder="검색어를 입력하세요."></input>
+          <div id="divSearchContent"></div>
         </div>
       </div>
 
@@ -43,10 +45,15 @@
             return;
           }
 
-          last_page_num = parseInt(document.querySelector("#txt-page-num-end").value);
-          var page_num_start = document.querySelector("#txt-page-num-start").value;
-          var page_size = document.querySelector("#txt-page-size").value;
+          last_page_num = parseInt(document.querySelector("#txt-page-num-end").value.trim());
+          var page_num_start = document.querySelector("#txt-page-num-start").value.trim();
+          var page_size = document.querySelector("#txt-page-size").value.trim();
           
+          if (!page_num_start || !page_size) {
+            alert("페이지 번호와 페이지 사이즈를 입력하세요.");
+            return;
+          }
+
           fetch_data(page_num_start, page_size);
         };
         
@@ -73,11 +80,12 @@
             });
         }
 
-        document.querySelector("#txt-e5").onkeydown = function(event) {
+        document.querySelector("#txt-search").onkeydown = function(event) {
           if (event.key !== 'Enter') 
             return;
 
-          fetch("/site_admin/api/getDataE5?search-text=" + event.target.value, {
+          var search_type = document.querySelector("input[name='search-mode']:checked").id;
+          fetch(`/site_admin/api/getSearchData?search_text=${event.target.value}&search_type=${search_type}`, {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
@@ -85,25 +93,49 @@
           })
             .then((response) => response.json())
             .then((result) => {
-              console.log("result", result);
-              e5_callback(result.data);
+              console.log("gemini result", result);
+              gemini_callback(result.data);
             })
             .catch((error) => {
               console.error("Error fetching expense data:", error);
             });
         };
 
-        function e5_callback(data) {
-          console.log("e5_callback data", data);
+        function gemini_callback(data) {
+          var divContent = document.querySelector("#divSearchContent");
+          divContent.innerHTML = "";
+
+          data.forEach(function(item) {
+            
+            metadata = item.metadata;
+            var divItem = document.createElement("div");
+            divItem.className = "mt-3";
+
+            var spanCategory = document.createElement("span");
+            spanCategory.className = "text-xs text-blue-500";
+            spanCategory.textContent = `${metadata.category} > ${metadata.sub_category}`;
+
+            var spanScore = document.createElement("span");
+            spanScore.className = "text-xs text-gray-500 pl-3";
+            spanScore.textContent = `${item.score.toFixed(3)}`;
+
+            var divTitle = document.createElement("div");
+            divTitle.className = "font-bold";
+            divTitle.textContent = `${metadata.policy_name}`;
+
+            var divDetail = document.createElement("div");
+            divDetail.innerHTML = item.content_chunk_v2.replace(/\r?\n/g, '<br>');
+            divDetail.className = "text-sm text-gray-500";
+
+            divItem.appendChild(spanCategory);
+            divItem.appendChild(spanScore);
+            divItem.appendChild(divTitle);
+            divItem.appendChild(divDetail);
+
+            divContent.appendChild(divItem);
+          });
 
         }
-
-        document.querySelector("#txt-gemini").onkeydown = function(event) {
-          if (event.key === 'Enter') {
-            // 엔터키를 눌렀을 때 수행할 동작
-            console.log('엔터키를 눌렀습니다.');
-          }
-        };
       </script>
     </div>
   </body>
