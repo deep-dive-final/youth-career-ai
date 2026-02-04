@@ -17,4 +17,5 @@ urlpatterns = [
     
     path("api/ai_generate_motivation/", views.ai_generate_motivation, name="ai_generate_motivation"), # AI 답변 생성 api
 
+    path("policies/list/", views.policy_list, name="policy_list"), # 전체보기(정책 목록)
 ]
