@@ -12,4 +12,9 @@ urlpatterns = [
     path("policy/apply/form/", views.apply_form, name="apply_form"), # AI 신청서 페이지
 
     path("policy/", views.policy_detail, name='policy_detail'), #상세페이지
+
+    path("api/get_form_fields/", views.get_form_fields, name="get_form_fields"), # 서류별 동적 입력칸 생성 API
+    
+    path("api/ai_generate_motivation/", views.ai_generate_motivation, name="ai_generate_motivation"), # AI 답변 생성 api
+
 ]
