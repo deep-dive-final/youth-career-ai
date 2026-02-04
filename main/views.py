@@ -148,6 +148,28 @@ def policy_detail(request):
         "link": policy.get('application_url') or policy.get('reference_url1') or "#"
     })
 
+
+def policy_list(request):
+    """데이터 가공 없이 있는 그대로 861개를 화면에 쏟아냄"""
+    try:
+        db = getMongoDbClient()
+        collection = db['policies']
+        
+        cursor = collection.find({}) 
+        data_list = json.loads(json_util.dumps(list(cursor)))
+        
+        print(f"DEBUG: 현재 불러온 총 정책 개수 = {len(data_list)}")
+
+        return render(request, "policy_list.html", {
+            "policies": data_list,
+            "title": "전체 정책 목록"
+        })
+    except Exception as e:
+        import traceback
+        print(f"❌ 치명적 오류:\n{traceback.format_exc()}")
+        return render(request, "index.html", {"error": str(e)})
+    
+
 @csrf_exempt
 def getPolicyData(request):
     try:
@@ -156,3 +178,4 @@ def getPolicyData(request):
         return JsonResponse({"status": "success", "data": data}, json_dumps_params={'ensure_ascii': False})
     except Exception as e: 
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    
