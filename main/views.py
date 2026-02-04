@@ -4,208 +4,155 @@ from django.views.decorators.csrf import csrf_exempt
 from bson import json_util
 from utils.db import getMongoDbClient
 import json
-from datetime import datetime
 import os 
-import google.generativeai as genai 
+import google.generativeai as genai
 from dotenv import load_dotenv 
 import re
 from datetime import datetime
-import google.generativeai as genai
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# 서류 준비 페이지 (DB에서 required_docs_text 파싱)
+GEMINI_MODEL = genai.GenerativeModel('models/gemini-2.5-flash')
+
+# 페이지 렌더링 함수
 def apply_steps(request):
     policy_id = request.GET.get('id')
     db = getMongoDbClient()
     collection = db['policies'] 
     policy = collection.find_one({"policy_id": policy_id})
+    if not policy: return render(request, "index.html", {"error": "정책 없음"})
     
-    docs_text = policy.get('required_docs_text', '')
-    
-    parts = re.split(r'\d+\.', docs_text)
-    
-    processed_docs = []
-    for part in parts:
-        sub_items = re.split(r'[\n,]', part)
-        for item in sub_items:
-            clean = re.sub(r'\([^\)]+\)', '', item).strip()
-            
-            if len(clean) >= 2:
-                processed_docs.append({
-                    "name": clean,
-                    "can_ai": any(kw in clean for kw in ["신청서", "동의서", "계획서", "자기소개서"])
-                })
+    submit_docs = policy.get('submit_documents', [])
+    processed_docs = [
+        {
+            "name": d.get('document_name', ''), 
+            "is_mandatory": d.get('is_mandatory', False), 
+            "can_ai": any(kw in d.get('document_name', '') for kw in ["신청서", "동의서", "계획서", "자기소개서", "서식"])
+        } for d in submit_docs
+    ]
+    return render(request, "apply_steps.html", {"policy": policy, "required_docs": processed_docs, "total_count": len(processed_docs)})
 
-    return render(request, "apply_steps.html", {
-        "policy": policy,
-        "required_docs": processed_docs,
-        "total_count": len(processed_docs)
-    })
-
-# 신청서 작성 페이지
 def apply_form(request):
     policy_id = request.GET.get('id')
     db = getMongoDbClient()
-    collection = db['policies']
-    policy = collection.find_one({"policy_id": policy_id})
+    policy = db['policies'].find_one({"policy_id": policy_id})
     return render(request, "apply_form.html", {"policy": policy})
 
-# AI가 답변을 생성하는 API 
+# AI API 함수
+
 @csrf_exempt
 def ai_generate_motivation(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            user_name = data.get('name', '신청자')
-            policy_name = data.get('policy_name', '해당 정책')
-            
-            model = genai.GenerativeModel('gemini-1.5-flash') 
-            prompt = f"{user_name}님이 '{policy_name}' 정책에 신청하려고 합니다. 성실함이 느껴지는 신청 동기를 300자 내외로 정중하게 작성해줘."
-            
-            response = model.generate_content(prompt)
-            return JsonResponse({"status": "success", "result": response.text})
-        except Exception as e:
-            return JsonResponse({"status": "error", "message": str(e)})
+    try:
+        data = json.loads(request.body)
+        
+        answers_list = data.get('answers', [])
+        policy_name = data.get('policy_name', '해당 정책')
+        doc_name = data.get('doc_name', '서류')
+        section_name = data.get('section_name', '항목')
 
-# 메인 페이지 (인덱스)
-from datetime import datetime
+        user_context = "\n".join([f"- {ans}" for ans in answers_list])
 
+        if not answers_list:
+            return JsonResponse({"status": "error", "message": "입력된 답변이 없습니다."})
+
+        prompt = f"""
+        당신은 공공기관 및 지자체 지원사업 서류 작성 전문가입니다.
+        아래 정보를 바탕으로 '{policy_name}'의 '{doc_name}' 내 '{section_name}' 섹션에 들어갈 전문적인 초안을 작성하세요.
+
+        [사용자 입력 정보]
+        {user_context}
+
+        [작성 가이드라인]
+        1. 사용자가 입력한 핵심 의도(예: 수익 창출, 목표 달성 등)를 유지하되, 서류에 적합한 전문 용어를 사용하세요.
+        2. 문장은 자연스러운 단락 형태로 구성하세요.
+        3. 도입부 - 본론(구체적 계획) - 결론(기대 효과)의 흐름을 갖춘 300자 내외의 초안을 만드세요.
+        4. "[ ]"와 같은 빈칸은 남기지 말고 완성된 형태로 제공하세요.
+        """
+
+        response = GEMINI_MODEL.generate_content(prompt)
+        
+        return JsonResponse({
+            "status": "success", 
+            "result": response.text.strip()
+        })
+        
+    except Exception as e:
+        print(f"Draft Generation Error: {e}")
+        return JsonResponse({"status": "error", "message": str(e)})
+
+@csrf_exempt
+def get_form_fields(request):
+    """서류별 AI 맞춤 질문 생성"""
+    doc_name = request.GET.get('doc', '서류')
+    policy_name = request.GET.get('policy_name', '해당 지원 정책') 
+    prompt = f"정책 {policy_name}의 {doc_name} 작성을 돕기 위한 기초 질문 2개를 JSON으로만 답해. 형식: {{'fields': [{{'id': 's1', 'label': '질문', 'questions': []}}]}}"
+    
+    try:
+        response = GEMINI_MODEL.generate_content(prompt)
+        match = re.search(r'\{.*\}', response.text.replace('\n', ' '), re.DOTALL)
+        if match:
+            return JsonResponse(json.loads(match.group()))
+        raise ValueError("AI 응답에서 JSON 형식을 찾을 수 없습니다.")
+        
+    except Exception as e:
+        print(f"Form Field API Error: {e}")
+        qs = ["현재 어떤 계획을 가지고 계신가요?", "구체적인 목표를 적어주세요."]
+        if "영농" in doc_name:
+            qs = ["현재 농사를 지으려는 지역은 어디인가요?", "가장 관심 있는 작물이나 품목은 무엇인가요?"]
+        return JsonResponse({"fields": [{"id": "base", "label": f"{doc_name} 작성", "questions": qs}]})
+
+# 공통 데이터 및 검색 함수들 
 def index(request):
     try:
         db = getMongoDbClient()
         collection = db['policies']
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
+        
         def get_processed_data(cursor):
-            import json
-            from bson import json_util
-            from datetime import datetime
-            
-            # 오늘 날짜 설정 (시간 제외)
-            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
             data_list = json.loads(json_util.dumps(list(cursor)))
-            
             for item in data_list:
-                # 1. dates라는 이름의 객체(dict)를 먼저 가져옵니다.
-                dates_obj = item.get('dates', {})
-                
-                # 2. 그 안에서 apply_period_end 값을 꺼냅니다.
-                end_date_str = dates_obj.get('apply_period_end', '')
-                
-                # 3. 값이 있고, '상시'를 뜻하는 99991231이 아닐 때만 D-Day 계산
+                end_date_str = item.get('dates', {}).get('apply_period_end', '')
                 if end_date_str and end_date_str != "99991231":
                     try:
-                        # DB 날짜 형식(YYYYMMDD)을 파이썬 날짜로 변환
-                        end_date = datetime.strptime(end_date_str, "%Y%m%d")
-                        delta = (end_date - today).days
-                        
-                        if delta > 0:
-                            item['d_day_label'] = f"D-{delta}"
-                        elif delta == 0:
-                            item['d_day_label'] = "D-Day"
-                        else:
-                            item['d_day_label'] = "마감"
-                    except Exception as e:
-                        # 날짜 형식이 이상하면 그냥 마감일 날짜라도 보여줌
-                        item['d_day_label'] = "-"
-                else:
-                    # 데이터가 아예 없거나 99991231일 때만 '상시'로 표시
-                    item['d_day_label'] = "상시"
-                    
+                        delta = (datetime.strptime(end_date_str, "%Y%m%d") - today).days
+                        item['d_day_label'] = f"D-{delta}" if delta > 0 else ("D-Day" if delta == 0 else "마감")
+                    except: item['d_day_label'] = "-"
+                else: item['d_day_label'] = "상시"
             return data_list
 
-        context = {
-            "recommended": get_processed_data(collection.find({}).limit(4)),
-            "popular": get_processed_data(collection.find({}).sort("view_count", -1).limit(4)),
-            "deadline": get_processed_data(collection.find({"apply_period_end": {"$ne": "99991231"}}).sort("apply_period_end", 1).limit(4)),
-        }
-        return render(request, "index.html", context)
-    except Exception as e:
-        return render(request, "index.html", {"error": str(e)})
+        return render(request, "index.html", {
+            "recommended": get_processed_data(collection.find({}).limit(4)), 
+            "popular": get_processed_data(collection.find({}).sort("view_count", -1).limit(4)), 
+            "deadline": get_processed_data(collection.find({"apply_period_end": {"$ne": "99991231"}}).sort("apply_period_end", 1).limit(4))
+        })
+    except Exception as e: return render(request, "index.html", {"error": str(e)})
 
-# 시뮬레이션 페이지
-def simulate(request):
-    return render(request, "simulate.html")
-
-# 정책 상세 페이지 함수 추가
-def policy_detail(request):
-    policy_id = request.GET.get('id')
-    db = getMongoDbClient()
-    collection = db['policies']
-    policy = collection.find_one({"policy_id": policy_id})
-    
-    if not policy:
-        return render(request, "index.html", {"error": "DB에서 정책을 찾을 수 없습니다."})
-
-    app_url = policy.get('application_url')
-    ref_url1 = policy.get('reference_url1')
-    ref_url2 = policy.get('reference_url2')
-    
-    target_link = app_url or ref_url1 or ref_url2 or "https://www.youthcenter.go.kr"
-
-    context = {
-        "policy": policy,
-        "docs_info": policy.get('required_docs_text'), 
-        "link": target_link, 
-        "age_range": f"만 {policy.get('eligibility', {}).get('age_min', '-')}세 ~ {policy.get('eligibility', {}).get('age_max', '-')}세",
-        "target_info": policy.get('participate_target', ''),
-        "apply_period": policy.get('dates', {}).get('apply_period', '상시모집') 
-    }
-    return render(request, "policy_detail.html", context)
-
-# D-Day 계산 로직
+def simulate(request): return render(request, "simulate.html")
 
 def policy_detail(request):
     policy_id = request.GET.get('id')
     db = getMongoDbClient()
-    collection = db['policies']
-    policy = collection.find_one({"policy_id": policy_id})
+    policy = db['policies'].find_one({"policy_id": policy_id})
+    if not policy: return render(request, "index.html")
     
-    if not policy:
-        return render(request, "index.html", {"error": "DB에서 정책을 찾을 수 없습니다."})
-
-    d_day_text = "상시모집"
-    end_date_str = policy.get('apply_end_date') 
+    start = policy.get('dates', {}).get('apply_period_start', '')
+    end = policy.get('dates', {}).get('apply_period_end', '')
+    display_period = "상시 모집" if "99991231" in end else f"{start} ~ {end}"
     
-    if end_date_str and end_date_str != "99991231": 
-        try:
-            end_date = datetime.strptime(end_date_str, "%Y%m%d")
-            today = datetime.now()
-            delta = end_date - today
-            
-            if delta.days > 0:
-                d_day_text = f"D-{delta.days}"
-            elif delta.days == 0:
-                d_day_text = "D-Day"
-            else:
-                d_day_text = "모집 마감"
-        except ValueError:
-            d_day_text = "기간 확인 필요"
-
-    context = {
-        "policy": policy,
-        "d_day": d_day_text,  
-        "link": policy.get('application_url') or policy.get('reference_url1') or "#",
-        "docs_info": policy.get('required_docs_text'),
-        "age_range": f"만 {policy.get('eligibility', {}).get('age_min', '-')}세 ~ {policy.get('eligibility', {}).get('age_max', '-')}세",
-        "target_info": policy.get('participate_target', ''),
-        "apply_period": f"{policy.get('apply_start_date', '-')} ~ {policy.get('apply_end_date', '-')}" 
-    }
-    return render(request, "policy_detail.html", context)
-
-
-
+    return render(request, "policy-detail.html", {
+        "policy": policy, 
+        "submit_docs": policy.get('submit_documents', []), 
+        "apply_period": display_period, 
+        "docs_info": policy.get('required_docs_text', ''), 
+        "link": policy.get('application_url') or policy.get('reference_url1') or "#"
+    })
 
 @csrf_exempt
 def getPolicyData(request):
     try:
-        policy_type = "청년" if request.GET.get('type') == '1' else "취업"
-        db = getMongoDbClient()
-        collection = db['test'] 
-        filtered = list(collection.find({"type": policy_type}))
-        sanitized_data = json.loads(json_util.dumps(filtered))
-        return JsonResponse({"status": "success", "data": sanitized_data}, json_dumps_params={'ensure_ascii': False})
-    except Exception as e:
+        p_type = "청년" if request.GET.get('type') == '1' else "취업"
+        data = json.loads(json_util.dumps(list(getMongoDbClient()['test'].find({"type": p_type}))))
+        return JsonResponse({"status": "success", "data": data}, json_dumps_params={'ensure_ascii': False})
+    except Exception as e: 
         return JsonResponse({"status": "error", "message": str(e)}, status=500)

@@ -1,102 +1,124 @@
-{% load static %}
-<div
-  class="container"
-  style="padding: 20px; background: white; min-height: 100vh"
->
-  <h2 style="font-size: 20px; margin-bottom: 20px">📝 신청서 작성</h2>
+<div class="container" style="padding: 20px; background: white; min-height: 100vh; font-family: 'Pretendard', sans-serif;">
+  <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 24px; color: #1a202c;">📝 신청서 작성</h2>
 
-  <div class="form-group" style="margin-bottom: 20px">
-    <label>신청인 성명</label>
-    <input
-      type="text"
-      placeholder="입력하세요"
-      style="
-        width: 100%;
-        padding: 15px;
-        border-radius: 15px;
-        border: 1px solid #eee;
-        background: #f8f9fa;
-      "
-    />
-  </div>
-
-  <div class="form-group" style="margin-bottom: 20px">
-    <div
-      style="
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-      "
-    >
-      <label>신청 동기</label>
-      <button
-        onclick="askAI()"
-        style="
-          background: #8e8ffa;
-          color: white;
-          border: none;
-          padding: 6px 12px;
-          border-radius: 20px;
-          font-size: 12px;
-          cursor: pointer;
-        "
-      >
-        ✨ AI 보조
-      </button>
+  <div id="dynamicFields">
+    <div style="text-align: center; padding: 60px 0;">
+      <p style="color: #a0aec0; font-size: 15px; margin-bottom: 8px;">서류 항목과 맞춤형 질문을 분석하고 있습니다...</p>
+      <div style="display: inline-block; width: 24px; height: 24px; border: 3px solid #edf2f7; border-top-color: #8e8ffa; border-radius: 50%; animation: spin 1s linear infinite;"></div>
     </div>
-    <textarea
-      id="ai_target_area"
-      placeholder="신청 동기를 입력하세요."
-      style="
-        width: 100%;
-        height: 150px;
-        padding: 15px;
-        border-radius: 15px;
-        border: 1px solid #eee;
-      "
-    ></textarea>
   </div>
 
-  <button
-    style="
-      width: 100%;
-      background: #a8e6cf;
-      color: white;
-      border: none;
-      padding: 18px;
-      border-radius: 20px;
-      font-weight: bold;
-    "
-  >
+  <button style="width: 100%; background: #a8e6cf; color: white; border: none; padding: 18px; border-radius: 20px; font-weight: bold; font-size: 16px; margin-top: 30px; cursor: pointer;">
     작성 완료
   </button>
 </div>
 
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+input[type="text"] { box-sizing: border-box !important; }
+</style>
+
 <script>
-  async function askAI() {
-    const name = document.getElementById('user_name').value;
-    const textArea = document.getElementById('motivationText');
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const docName = urlParams.get('doc');
+    // URL에서 정책 이름을 가져옵니다. (없으면 기본값 설정)
+    const policyName = urlParams.get('policy_name') || "원주시 청년농 스마트팜 교육"; 
+    const container = document.getElementById('dynamicFields');
 
-    if (!name) return alert('성함을 먼저 입력해주세요!');
+    if (!docName || !container) return;
 
-    textArea.value = 'AI가 작성 중입니다... ✨';
+    // API 호출 시 정책 이름(policy_name)을 함께 보냅니다.
+    fetch(`/api/get_form_fields/?doc=${encodeURIComponent(docName)}&policy_name=${encodeURIComponent(policyName)}`)
+        .then(res => res.json())
+        .then(data => {
+            container.innerHTML = ''; 
 
-    const response = await fetch('/api/ai-generate/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': '{{ csrf_token }}',
-      },
-      body: JSON.stringify({
-        name: name,
-        policy_name: '{{ policy.policy_name }}',
-      }),
-    });
+            if (!data.fields || data.fields.length === 0) {
+                container.innerHTML = "<p style='text-align:center; color:#718096;'>항목을 불러오지 못했습니다.</p>";
+                return;
+            }
 
-    const data = await response.json();
-    if (data.status === 'success') {
-      textArea.value = data.result;
+            data.fields.forEach(field => {
+                const questionsHtml = (field.questions || ["내용을 입력해주세요."]).map((q, idx) => `
+                    <div style="margin-bottom: 20px; text-align: left;">
+                        <p style="font-size: 14px; color: #4a5568; margin-bottom: 8px; font-weight: 600;">Q. ${q}</p>
+                        <input type="text" 
+                               class="${field.id}-answer" 
+                               placeholder="답변을 입력하세요" 
+                               style="width: 100%; min-height: 45px; padding: 12px; border: 1px solid #edf2f7; border-radius: 12px; font-size: 14px; outline: none; display: block; background: #ffffff;">
+                    </div>
+                `).join('');
+
+                const sectionHtml = `
+                    <div class="field-group" style="margin-bottom: 35px; border-bottom: 2px solid #f7fafc; padding-bottom: 25px;">
+                        <label style="font-weight: bold; font-size: 18px; color: #2d3748; display: block; margin-bottom: 15px; text-align: left;">${field.label}</label>
+                        <div style="background: #f8fafc; padding: 20px; border-radius: 15px; margin-bottom: 15px;">
+                            ${questionsHtml}
+                            <button type="button" onclick="generateDraft('${field.id}', '${field.label}')" 
+                                    style="margin-top: 10px; background: #8e8ffa; color: white; border: none; padding: 14px; border-radius: 12px; cursor: pointer; width: 100%; font-weight: 600;">
+                                🪄 답변을 문장으로 만들기
+                            </button>
+                        </div>
+                        <textarea id="${field.id}" placeholder="AI가 작성한 초안이 여기에 나타납니다. 직접 수정할 수 있어요." 
+                                  style="width: 100%; height: 160px; border: 1px solid #e2e8f0; border-radius: 15px; padding: 15px; font-family: inherit; line-height: 1.6; display: none; outline: none; box-sizing: border-box;"></textarea>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', sectionHtml);
+            });
+        })
+        .catch(err => {
+            console.error("오류 발생:", err);
+            container.innerHTML = "<p style='text-align:center; color:#e53e3e;'>데이터를 가져오는 중 오류가 발생했습니다.</p>";
+        });
+});
+
+function generateDraft(fieldId, label) {
+    // 모든 답변 입력창의 값을 배열로 수집합니다.
+    const answers = Array.from(document.querySelectorAll(`.${fieldId}-answer`))
+                         .map(input => input.value)
+                         .filter(val => val.trim() !== "");
+
+    if (answers.length === 0) {
+        alert("최소 하나 이상의 질문에 답변을 적어주세요!");
+        return;
     }
-  }
+
+    const btn = event.target;
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ AI가 문장을 다듬는 중...";
+    btn.disabled = true;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const policyName = urlParams.get('policy_name') || "원주시 청년농 스마트팜 교육";
+
+    // 백엔드로 answers 배열을 전송합니다.
+    fetch('/api/ai_generate_motivation/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            policy_name: policyName,
+            doc_name: urlParams.get('doc'),
+            section_name: label,
+            answers: answers // 개별 답변들을 리스트로 보냄
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        const textarea = document.getElementById(fieldId);
+        if (data.status === "success") {
+            textarea.style.display = 'block';
+            textarea.value = data.result;
+            // 결과창으로 부드럽게 스크롤
+            textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            alert("문장 생성 중 오류가 발생했습니다: " + data.message);
+        }
+    })
+    .catch(err => alert("통신 오류가 발생했습니다."))
+    .finally(() => {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    });
+}
 </script>

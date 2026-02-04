@@ -32,23 +32,27 @@
       <h3 style="font-size: 18px; margin-bottom: 15px; color: #2d3748">📋 필요 서류</h3>
 
       <div class="doc-list">
-        {% for doc in required_docs %}
-        <div style="background: white; border-radius: 24px; padding: 24px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
-          <div style="display: flex; align-items: center; margin-bottom: 12px">
-            <span style="font-size: 17px; font-weight: bold;">{{ doc.name }}</span>
-          </div>
-          <div style="display: flex; gap: 10px">
-            <button style="flex: 1; background: #a8e6cf; color: white; border: none; padding: 14px; border-radius: 16px; font-weight: bold;">📤 등록하기</button>
-            {% if doc.can_ai %}
-            <button onclick="location.href='/policy/apply/form/?id={{ policy.policy_id }}&doc={{ doc.name }}'" 
-                    style="flex: 1; background: #8e8ffa; color: white; border: none; padding: 14px; border-radius: 16px; font-weight: bold;">📝 AI 작성</button>
-            {% endif %}
-          </div>
-        </div>
-        {% empty %}
-        <p style="text-align: center; color: gray; padding: 50px 0;">인식된 서류가 없습니다. ({{ policy.required_docs_text|truncatechars:20 }})</p>
-        {% endfor %}
-      </div>
+  {% for doc in required_docs %}
+  <div style="background: white; border-radius: 24px; padding: 24px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px">
+      <span style="font-size: 17px; font-weight: bold;">{{ doc.name }}</span>
+      {% if doc.is_mandatory %}
+      <span style="font-size: 11px; color: #ff4d4d; background: #fff5f5; padding: 2px 8px; border-radius: 4px; font-weight: bold;">필수</span>
+      {% endif %}
+    </div>
+    
+    <div style="display: flex; gap: 10px">
+      <button style="flex: 1; background: #f1f3f5; color: #4a5568; border: none; padding: 14px; border-radius: 16px; font-weight: bold;">📤 등록하기</button>
+      {% if doc.can_ai %}
+      <button onclick="location.href='/policy/apply/form/?id={{ policy.policy_id }}&doc={{ doc.name }}'" 
+              style="flex: 1; background: #8e8ffa; color: white; border: none; padding: 14px; border-radius: 16px; font-weight: bold;">📝 AI 작성</button>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <p style="text-align: center; color: gray; padding: 50px 0;">인식된 서류가 없습니다.</p>
+  {% endfor %}
+</div>
     </div>
   </body>
 </html>
