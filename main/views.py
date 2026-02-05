@@ -220,6 +220,7 @@ def save_application(request):
             return JsonResponse({"status": "success"})
         except Exception as e:
             return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
         
 def get_saved_document(request):
     policy_id = request.GET.get('id')
@@ -227,8 +228,13 @@ def get_saved_document(request):
     pure_doc = clean_doc_name(raw_doc)
     
     db = getMongoDbClient()
+    
     saved_doc = db['user_policy_document'].find_one(
-        {"document_type": pure_doc, "user_id": "guest_user"},
+        {
+            "doc_name": pure_doc, 
+            "user_id": "guest_user", 
+            "policy_id": str(policy_id) 
+        },
         sort=[("insert_at", -1)]
     )
     
@@ -236,8 +242,25 @@ def get_saved_document(request):
         return JsonResponse({
             "status": "success",
             "content": saved_doc.get('document_content', ''),
-            "is_current": saved_doc.get('policy_id') == policy_id
+            "is_current": True
         })
+    
+    legacy_doc = db['user_policy_document'].find_one(
+        {
+            "document_type": pure_doc, 
+            "user_id": "guest_user", 
+            "policy_id": str(policy_id)
+        },
+        sort=[("insert_at", -1)]
+    )
+    
+    if legacy_doc:
+        return JsonResponse({
+            "status": "success",
+            "content": legacy_doc.get('document_content', ''),
+            "is_current": True
+        })
+
     return JsonResponse({"status": "error"})
 
 
