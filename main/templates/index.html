@@ -58,7 +58,7 @@
         </div>
         <div class="policy-scroll">
           {% for policy in recommended %}
-          <div class="policy-card" onclick="location.href='/policy/detail/?id={{ policy.policy_id }}'">
+          <div class="policy-card" onclick="location.href='/policy/?id={{ policy.policy_id }}'">
             <div class="card-header">
               <span class="badge">{{ policy.category }}</span>
               <span class="date">{{ policy.apply_end_date }}</span>
@@ -81,7 +81,7 @@
         </div>
         <div class="policy-scroll">
           {% for policy in popular %}
-          <div class="policy-card" onclick="location.href='/policy/detail/?id={{ policy.policy_id }}'">
+          <div class="policy-card" onclick="location.href='/policy/?id={{ policy.policy_id }}'">
             <div class="card-header">
               <span class="badge">{{ policy.category }}</span>
             </div>
@@ -101,7 +101,7 @@
         </div>
         <div class="policy-scroll">
           {% for policy in deadline %}
-          <div class="policy-card" onclick="location.href='/policy/detail/?id={{ policy.policy_id }}'" style="display: flex; flex-direction: column; align-items: flex-start;">
+          <div class="policy-card" onclick="location.href='/policy/?id={{ policy.policy_id }}'" style="display: flex; flex-direction: column; align-items: flex-start;">
             <div class="card-header" style="width: 100%; display: flex; align-items: center; margin-bottom: 12px;">
               <span class="badge" style="background-color: #ff4d4d; color: white; border-radius: 50px; padding: 4px 12px; font-size: 11px; font-weight: bold;">
                 {{ policy.d_day_label|default:"D-Day" }}
