@@ -18,4 +18,8 @@ urlpatterns = [
     path("api/ai_generate_motivation/", views.ai_generate_motivation, name="ai_generate_motivation"), # AI 답변 생성 api
 
     path("policies/list/", views.policy_list, name="policy_list"), # 전체보기(정책 목록)
+
+    path("api/user_document_save/", views.save_application, name="save_app"), # 사용자 서류 저장 API
+
+    path("api/get_saved_document/", views.get_saved_document, name="get_saved_document"), # 저장된 사용자 서류 불러오기 API
 ]
