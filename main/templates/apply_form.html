@@ -1,14 +1,15 @@
 <div class="container" style="padding: 20px; background: white; min-height: 100vh; font-family: 'Pretendard', sans-serif;">
-  <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 24px; color: #1a202c;">📝 신청서 작성</h2>
+  <h2 id="displayPolicyName" style="font-size: 16px; color: #8e8ffa; margin-bottom: 4px; font-weight: 500;">정책 정보를 확인 중입니다...</h2>
+  <h2 style="font-size: 22px; font-weight: bold; margin-bottom: 24px; color: #1a202c;">📝 <span id="displayDocName">서류</span> 작성</h2>
 
   <div id="dynamicFields">
-    <div style="text-align: center; padding: 60px 0;">
-      <p style="color: #a0aec0; font-size: 15px; margin-bottom: 8px;">서류 항목과 맞춤형 질문을 분석하고 있습니다...</p>
+    <div id="loadingStatus" style="text-align: center; padding: 60px 0;">
+      <p style="color: #a0aec0; font-size: 15px; margin-bottom: 8px;">AI가 서류 항목에 맞는 맞춤형 질문을 생성하고 있습니다...</p>
       <div style="display: inline-block; width: 24px; height: 24px; border: 3px solid #edf2f7; border-top-color: #8e8ffa; border-radius: 50%; animation: spin 1s linear infinite;"></div>
     </div>
   </div>
 
-  <button style="width: 100%; background: #a8e6cf; color: white; border: none; padding: 18px; border-radius: 20px; font-weight: bold; font-size: 16px; margin-top: 30px; cursor: pointer;">
+  <button onclick="window.history.back()" style="width: 100%; background: #a8e6cf; color: white; border: none; padding: 18px; border-radius: 20px; font-weight: bold; font-size: 16px; margin-top: 30px; cursor: pointer;">
     작성 완료
   </button>
 </div>
@@ -16,37 +17,51 @@
 <style>
 @keyframes spin { to { transform: rotate(360deg); } }
 input[type="text"] { box-sizing: border-box !important; }
+.field-group { opacity: 0; animation: fadeIn 0.5s forwards; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const docName = urlParams.get('doc');
-    // URL에서 정책 이름을 가져옵니다. (없으면 기본값 설정)
-    const policyName = urlParams.get('policy_name') || "원주시 청년농 스마트팜 교육"; 
+    const policyId = urlParams.get('id'); 
     const container = document.getElementById('dynamicFields');
 
-    if (!docName || !container) return;
+    if (docName) document.getElementById('displayDocName').innerText = docName;
 
-    // API 호출 시 정책 이름(policy_name)을 함께 보냅니다.
-    fetch(`/api/get_form_fields/?doc=${encodeURIComponent(docName)}&policy_name=${encodeURIComponent(policyName)}`)
-        .then(res => res.json())
+    if (!policyId) {
+        container.innerHTML = "<p style='text-align:center; color:#e53e3e; padding: 40px;'>⚠️ 정책 ID가 없습니다. 목록에서 다시 진입해주세요.</p>";
+        return;
+    }
+
+    const apiUrl = `/api/get_form_fields/?id=${policyId}&doc=${encodeURIComponent(docName || '신청서')}`;
+    
+    fetch(apiUrl)
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP 에러! 상태코드: ${res.status}`);
+            return res.json();
+        })
         .then(data => {
             container.innerHTML = ''; 
 
             if (!data.fields || data.fields.length === 0) {
-                container.innerHTML = "<p style='text-align:center; color:#718096;'>항목을 불러오지 못했습니다.</p>";
+                container.innerHTML = "<p style='text-align:center; color:#718096; padding: 40px;'>항목을 불러오지 못했습니다.<br><small style='color:#cbd5e0;'>서버 응답을 확인해주세요.</small></p>";
                 return;
             }
 
+            if (data.policy_name) {
+                document.getElementById('displayPolicyName').innerText = data.policy_name;
+            }
+
             data.fields.forEach(field => {
-                const questionsHtml = (field.questions || ["내용을 입력해주세요."]).map((q, idx) => `
+                const questionsHtml = (field.questions || ["내용을 입력해주세요."]).map((q) => `
                     <div style="margin-bottom: 20px; text-align: left;">
                         <p style="font-size: 14px; color: #4a5568; margin-bottom: 8px; font-weight: 600;">Q. ${q}</p>
                         <input type="text" 
                                class="${field.id}-answer" 
                                placeholder="답변을 입력하세요" 
-                               style="width: 100%; min-height: 45px; padding: 12px; border: 1px solid #edf2f7; border-radius: 12px; font-size: 14px; outline: none; display: block; background: #ffffff;">
+                               style="width: 100%; min-height: 48px; padding: 12px; border: 1px solid #edf2f7; border-radius: 12px; font-size: 14px; outline: none; display: block; background: #ffffff;">
                     </div>
                 `).join('');
 
@@ -55,26 +70,25 @@ document.addEventListener('DOMContentLoaded', function() {
                         <label style="font-weight: bold; font-size: 18px; color: #2d3748; display: block; margin-bottom: 15px; text-align: left;">${field.label}</label>
                         <div style="background: #f8fafc; padding: 20px; border-radius: 15px; margin-bottom: 15px;">
                             ${questionsHtml}
-                            <button type="button" onclick="generateDraft('${field.id}', '${field.label}')" 
-                                    style="margin-top: 10px; background: #8e8ffa; color: white; border: none; padding: 14px; border-radius: 12px; cursor: pointer; width: 100%; font-weight: 600;">
+                            <button type="button" onclick="generateDraft(event, '${field.id}', '${field.label}')" 
+                                    style="margin-top: 10px; background: #8e8ffa; color: white; border: none; padding: 16px; border-radius: 12px; cursor: pointer; width: 100%; font-weight: 600;">
                                 🪄 답변을 문장으로 만들기
                             </button>
                         </div>
-                        <textarea id="${field.id}" placeholder="AI가 작성한 초안이 여기에 나타납니다. 직접 수정할 수 있어요." 
-                                  style="width: 100%; height: 160px; border: 1px solid #e2e8f0; border-radius: 15px; padding: 15px; font-family: inherit; line-height: 1.6; display: none; outline: none; box-sizing: border-box;"></textarea>
+                        <textarea id="${field.id}" placeholder="AI 초안이 여기에 생성됩니다." 
+                                  style="width: 100%; height: 180px; border: 1px solid #e2e8f0; border-radius: 15px; padding: 18px; font-family: inherit; line-height: 1.6; display: none; outline: none; box-sizing: border-box;"></textarea>
                     </div>
                 `;
                 container.insertAdjacentHTML('beforeend', sectionHtml);
             });
         })
         .catch(err => {
-            console.error("오류 발생:", err);
-            container.innerHTML = "<p style='text-align:center; color:#e53e3e;'>데이터를 가져오는 중 오류가 발생했습니다.</p>";
+            console.error("에러 발생:", err);
+            container.innerHTML = `<p style='text-align:center; color:#e53e3e; padding: 40px;'>데이터 로딩 실패: ${err.message}</p>`;
         });
 });
 
-function generateDraft(fieldId, label) {
-    // 모든 답변 입력창의 값을 배열로 수집합니다.
+function generateDraft(event, fieldId, label) {
     const answers = Array.from(document.querySelectorAll(`.${fieldId}-answer`))
                          .map(input => input.value)
                          .filter(val => val.trim() !== "");
@@ -86,21 +100,20 @@ function generateDraft(fieldId, label) {
 
     const btn = event.target;
     const originalText = btn.innerText;
-    btn.innerText = "⏳ AI가 문장을 다듬는 중...";
+    btn.innerText = "⏳ 생성 중...";
     btn.disabled = true;
 
     const urlParams = new URLSearchParams(window.location.search);
-    const policyName = urlParams.get('policy_name') || "원주시 청년농 스마트팜 교육";
+    const policyId = urlParams.get('id');
 
-    // 백엔드로 answers 배열을 전송합니다.
     fetch('/api/ai_generate_motivation/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            policy_name: policyName,
+            policy_id: policyId,
             doc_name: urlParams.get('doc'),
             section_name: label,
-            answers: answers // 개별 답변들을 리스트로 보냄
+            answers: answers 
         })
     })
     .then(res => res.json())
@@ -109,13 +122,12 @@ function generateDraft(fieldId, label) {
         if (data.status === "success") {
             textarea.style.display = 'block';
             textarea.value = data.result;
-            // 결과창으로 부드럽게 스크롤
             textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
-            alert("문장 생성 중 오류가 발생했습니다: " + data.message);
+            alert("생성 실패: " + data.message);
         }
     })
-    .catch(err => alert("통신 오류가 발생했습니다."))
+    .catch(() => alert("통신 오류가 발생했습니다."))
     .finally(() => {
         btn.innerText = originalText;
         btn.disabled = false;

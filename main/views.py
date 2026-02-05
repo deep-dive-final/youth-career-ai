@@ -83,24 +83,59 @@ def ai_generate_motivation(request):
 
 @csrf_exempt
 def get_form_fields(request):
-    """서류별 AI 맞춤 질문 생성"""
+    """정책 상세 내용을 기반으로 서류별 맞춤 질문 생성"""
+    policy_id = request.GET.get('id') 
     doc_name = request.GET.get('doc', '서류')
-    policy_name = request.GET.get('policy_name', '해당 지원 정책') 
-    prompt = f"정책 {policy_name}의 {doc_name} 작성을 돕기 위한 기초 질문 2개를 JSON으로만 답해. 형식: {{'fields': [{{'id': 's1', 'label': '질문', 'questions': []}}]}}"
+    
+    db = getMongoDbClient()
+    collection = db['policies']
+    
+    policy = collection.find_one({"policy_id": policy_id})
+    
+    content = policy.get('content', '일반 지원 사업') if policy else "정책 정보를 읽을 수 없습니다."
+    p_name = policy.get('policy_name', '해당 정책') if policy else "알 수 없는 정책"
+
+    # AI 프롬프트
+    prompt = f"""
+    당신은 서류 작성 도우미입니다. 
+    과거의 모든 데이터는 무시하고, 오직 아래 [정책 내용]에만 근거해서 [{doc_name}] 작성을 위한 질문 2개를 만드세요.
+    
+    [정책 내용]: {content}
+    
+    지시사항:
+    - 질문은 반드시 [{doc_name}]이라는 서류의 맥락에 맞아야 합니다.
+    - 결과는 반드시 아래 JSON 형식을 엄격히 지켜 답변하세요. 다른 텍스트는 금지합니다.
+
+    {{
+      "policy_name": "{p_name}",
+      "fields": [
+        {{
+          "id": "q_group_1",
+          "label": "{doc_name} 작성 기초 질문",
+          "questions": ["질문 1 내용", "질문 2 내용"]
+        }}
+      ]
+    }}
+    """
     
     try:
         response = GEMINI_MODEL.generate_content(prompt)
         match = re.search(r'\{.*\}', response.text.replace('\n', ' '), re.DOTALL)
         if match:
             return JsonResponse(json.loads(match.group()))
-        raise ValueError("AI 응답에서 JSON 형식을 찾을 수 없습니다.")
-        
+        raise ValueError("AI 응답 형식 오류")
     except Exception as e:
-        print(f"Form Field API Error: {e}")
-        qs = ["현재 어떤 계획을 가지고 계신가요?", "구체적인 목표를 적어주세요."]
-        if "영농" in doc_name:
-            qs = ["현재 농사를 지으려는 지역은 어디인가요?", "가장 관심 있는 작물이나 품목은 무엇인가요?"]
-        return JsonResponse({"fields": [{"id": "base", "label": f"{doc_name} 작성", "questions": qs}]})
+        print(f"❌ 에러 발생: {e}")
+        # 에러 발생 시 사용자에게 보여줄 기본 질문
+        return JsonResponse({
+            "policy_name": p_name,
+            "fields": [{
+                "id": "base",
+                "label": f"{doc_name} 기본 정보",
+                "questions": ["지원하시려는 구체적인 동기를 입력해주세요.", "본 사업을 통해 얻고자 하는 목표를 적어주세요."]
+            }]
+        })
+
 
 # 공통 데이터 및 검색 함수들 
 def index(request):
