@@ -9,29 +9,70 @@ import google.generativeai as genai
 from dotenv import load_dotenv 
 import re
 from datetime import datetime
+from bson import ObjectId
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 GEMINI_MODEL = genai.GenerativeModel('models/gemini-2.5-flash')
 
+# 유틸리티 함수\
+def clean_doc_name(name):
+    """서류 이름에서 괄호와 그 안의 내용을 제거 (예: '신청서(필수)' -> '신청서')"""
+    if not name: return ""
+    return re.sub(r'\(.*?\)', '', name).strip()
+
 # 페이지 렌더링 함수
+
 def apply_steps(request):
-    policy_id = request.GET.get('id')
+    policy_id = str(request.GET.get('id'))
     db = getMongoDbClient()
-    collection = db['policies'] 
-    policy = collection.find_one({"policy_id": policy_id})
+    
+    policy = db['policies'].find_one({"policy_id": policy_id})
     if not policy: return render(request, "index.html", {"error": "정책 없음"})
     
+    completed_docs = db['user_policy_document'].find(
+        {"user_id": "guest_user", "policy_id": policy_id}
+    )
+    
+    completed_names = []
+    for d in completed_docs:
+        name = d.get('doc_name') or d.get('document_type')
+        if name:
+            completed_names.append(name)
+            
+    print(f"DEBUG - 작성 완료된 서류들: {completed_names}") 
+
     submit_docs = policy.get('submit_documents', [])
-    processed_docs = [
-        {
-            "name": d.get('document_name', ''), 
-            "is_mandatory": d.get('is_mandatory', False), 
-            "can_ai": any(kw in d.get('document_name', '') for kw in ["신청서", "동의서", "계획서", "자기소개서", "서식"])
-        } for d in submit_docs
-    ]
-    return render(request, "apply_steps.html", {"policy": policy, "required_docs": processed_docs, "total_count": len(processed_docs)})
+    processed_docs = []
+    
+    exclude_keywords = ["등본", "초본", "수료증", "증명서", "확인서", "자격증", "증빙"]
+
+    for d in submit_docs:
+        raw_name = d.get('document_name', '')
+        pure_name = clean_doc_name(raw_name)
+        
+        is_ai_possible = any(kw in pure_name for kw in ["신청서", "동의서", "계획서", "자기소개서", "서식"]) \
+                         and not any(ex in pure_name for ex in exclude_keywords)
+
+        is_completed = pure_name in completed_names
+
+        processed_docs.append({
+            "name": raw_name,
+            "is_mandatory": d.get('is_mandatory', False),
+            "can_ai": is_ai_possible,
+            "is_completed": is_completed
+        })
+
+    completed_count = len([d for d in processed_docs if d['is_completed']])
+
+    return render(request, "apply_steps.html", {
+        "policy": policy, 
+        "required_docs": processed_docs, 
+        "total_count": len(processed_docs),
+        "completed_count": completed_count
+    })
+
 
 def apply_form(request):
     policy_id = request.GET.get('id')
@@ -45,14 +86,13 @@ def apply_form(request):
 def ai_generate_motivation(request):
     try:
         data = json.loads(request.body)
-        
         answers_list = data.get('answers', [])
         policy_name = data.get('policy_name', '해당 정책')
         doc_name = data.get('doc_name', '서류')
         section_name = data.get('section_name', '항목')
 
         user_context = "\n".join([f"- {ans}" for ans in answers_list])
-
+        
         if not answers_list:
             return JsonResponse({"status": "error", "message": "입력된 답변이 없습니다."})
 
@@ -91,27 +131,32 @@ def get_form_fields(request):
     collection = db['policies']
     
     policy = collection.find_one({"policy_id": policy_id})
+    if not policy:
+        print(f"❌ DB 조회 실패: policy_id={policy_id}")
+        return JsonResponse({"error": "정책 정보를 찾을 수 없습니다."}, status=404)
     
-    content = policy.get('content', '일반 지원 사업') if policy else "정책 정보를 읽을 수 없습니다."
-    p_name = policy.get('policy_name', '해당 정책') if policy else "알 수 없는 정책"
+    content = policy.get('content', '일반 지원 사업')
+    p_name = policy.get('policy_name', '해당 정책')
 
-    # AI 프롬프트
     prompt = f"""
-    당신은 서류 작성 도우미입니다. 
-    과거의 모든 데이터는 무시하고, 오직 아래 [정책 내용]에만 근거해서 [{doc_name}] 작성을 위한 질문 2개를 만드세요.
+    당신은 공공기관 지원사업 서류 작성 전문가이자 도우미입니다. 
+    과거의 모든 데이터는 무시하고, 오직 아래 [정책 내용]에만 근거해서 [{doc_name}] 작성을 위한 맞춤형 질문 2개를 생성하세요.
     
-    [정책 내용]: {content}
+    [정책 내용]: {content[:2000]} 
     
     지시사항:
-    - 질문은 반드시 [{doc_name}]이라는 서류의 맥락에 맞아야 합니다.
-    - 결과는 반드시 아래 JSON 형식을 엄격히 지켜 답변하세요. 다른 텍스트는 금지합니다.
+    1. 질문은 반드시 [{doc_name}]이라는 서류의 특수성과 맥락을 반영해야 합니다. 
+       (예: 신청서라면 지원 동기, 계획서라면 구체적 실행 방안 등)
+    2. 사용자가 답변하기 쉽도록 구체적인 예시나 방향성을 포함한 질문을 만드세요.
+    3. 정책의 지원 대상, 혜택, 목적과 직결된 질문이어야 합니다.
+    4. 결과는 반드시 아래 JSON 형식을 엄격히 지켜 답변하세요. 다른 설명 텍스트는 일절 금지합니다.
 
     {{
       "policy_name": "{p_name}",
       "fields": [
         {{
           "id": "q_group_1",
-          "label": "{doc_name} 작성 기초 질문",
+          "label": "{doc_name} 작성을 위한 핵심 질문",
           "questions": ["질문 1 내용", "질문 2 내용"]
         }}
       ]
@@ -119,22 +164,105 @@ def get_form_fields(request):
     """
     
     try:
-        response = GEMINI_MODEL.generate_content(prompt)
-        match = re.search(r'\{.*\}', response.text.replace('\n', ' '), re.DOTALL)
-        if match:
-            return JsonResponse(json.loads(match.group()))
-        raise ValueError("AI 응답 형식 오류")
+        response = GEMINI_MODEL.generate_content(
+            prompt,
+            generation_config={ "response_mime_type": "application/json" }
+        )
+        
+        res_text = response.text.strip()
+        
+        start_idx = res_text.find('{')
+        end_idx = res_text.rfind('}') + 1
+        
+        if start_idx != -1:
+            return JsonResponse(json.loads(res_text[start_idx:end_idx]))
+        
+        raise ValueError("AI 응답에서 JSON 구조를 찾을 수 없습니다.")
+
     except Exception as e:
-        print(f"❌ 에러 발생: {e}")
-        # 에러 발생 시 사용자에게 보여줄 기본 질문
+        print(f"🔥 AI 질문 생성 에러: {e}")
+        # 에러 발생 시 질문
         return JsonResponse({
             "policy_name": p_name,
             "fields": [{
                 "id": "base",
-                "label": f"{doc_name} 기본 정보",
-                "questions": ["지원하시려는 구체적인 동기를 입력해주세요.", "본 사업을 통해 얻고자 하는 목표를 적어주세요."]
+                "label": f"{doc_name} 기본 정보 확인",
+                "questions": [
+                    f"이 사업의 공고 내용 중 어떤 부분이 본인의 상황과 가장 잘 맞는다고 생각하시나요?",
+                    f"해당 {doc_name}을(를) 통해 기관에 어필하고 싶은 본인만의 차별점은 무엇인가요?"
+                ]
             }]
         })
+
+@csrf_exempt
+def save_application(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            db = getMongoDbClient()
+            collection = db['user_policy_document']
+        
+            pure_doc_name = clean_doc_name(data.get('doc_name'))
+            
+            save_data = {
+                "policy_id": str(data.get('policy_id')), 
+                "user_id": data.get('user_id', "guest_user"),
+                "doc_name": pure_doc_name, 
+                "document_content": data.get('content'),
+                "insert_at": datetime.now()
+            }
+            
+            collection.update_one(
+                {"policy_id": save_data["policy_id"], "user_id": save_data["user_id"], "doc_name": pure_doc_name},
+                {"$set": save_data},
+                upsert=True
+            )
+            return JsonResponse({"status": "success"})
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+        
+def get_saved_document(request):
+    policy_id = request.GET.get('id')
+    raw_doc = request.GET.get('doc')
+    pure_doc = clean_doc_name(raw_doc)
+    
+    db = getMongoDbClient()
+    
+    saved_doc = db['user_policy_document'].find_one(
+        {
+            "doc_name": pure_doc, 
+            "user_id": "guest_user", 
+            "policy_id": str(policy_id) 
+        },
+        sort=[("insert_at", -1)]
+    )
+    
+    if saved_doc:
+        return JsonResponse({
+            "status": "success",
+            "content": saved_doc.get('document_content', ''),
+            "is_current": True
+        })
+    
+    legacy_doc = db['user_policy_document'].find_one(
+        {
+            "document_type": pure_doc, 
+            "user_id": "guest_user", 
+            "policy_id": str(policy_id)
+        },
+        sort=[("insert_at", -1)]
+    )
+    
+    if legacy_doc:
+        return JsonResponse({
+            "status": "success",
+            "content": legacy_doc.get('document_content', ''),
+            "is_current": True
+        })
+
+    return JsonResponse({"status": "error"})
+
 
 
 # 공통 데이터 및 검색 함수들 
@@ -201,9 +329,8 @@ def policy_list(request):
         })
     except Exception as e:
         import traceback
-        print(f"❌ 치명적 오류:\n{traceback.format_exc()}")
+        print(f"❌ 오류:\n{traceback.format_exc()}")
         return render(request, "index.html", {"error": str(e)})
-    
 
 @csrf_exempt
 def getPolicyData(request):
