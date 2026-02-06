@@ -6,4 +6,5 @@ urlpatterns = [
     path("data", views.data, name="data"),
     path("api/importData", views.importData, name="importData"),
     path("api/getSearchData", views.getSearchData, name="getSearchData"),
+    path("api/uploadFile", views.upload_file, name="uploadFile"),
 ]

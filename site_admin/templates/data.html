@@ -1,3 +1,4 @@
+{% load static %}
 <html>
   <head>
     <title>Data Page</title>
@@ -30,6 +31,16 @@
         <div>
           <input id="txt-search" type="text" class="border border-gray-300 px-1 py-0.5" style="width:90%" placeholder="검색어를 입력하세요."></input>
           <div id="divSearchContent"></div>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h3 class="pb-3">✔ 파일 업로드 테스트</h3>
+        <div class="pb-3">
+          <input type="file" id="file_input" class="hidden" onchange="uploadFile()">
+          <label for="file_input" class="px-4 py-2 bg-indigo-600 text-white rounded cursor-pointer hover:bg-indigo-700">
+            파일 업로드
+          </label>
+          <div id="div_update_status" class="mt-5"></div>
         </div>
       </div>
 
@@ -136,7 +147,44 @@
           });
 
         }
+
+        // 파일 업로드
+        async function uploadFile() {
+            const fileInput = document.getElementById('file_input');
+            const status = document.getElementById('div_update_status');
+            
+            if (fileInput.files.length === 0) {
+                alert("파일을 선택해주세요!");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("document_file", fileInput.files[0]); // 'myfile'은 view에서 받을 이름
+
+            try {
+                status.innerText = "업로드 중...";
+                
+                const response = await fetch("/site_admin/api/uploadFile", { // Django의 URL
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        // CSRF 토큰은 Django 보안을 위해 필수입니다.
+                        "X-CSRFToken": getCookie('csrftoken') 
+                    }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    status.innerText = "업로드 성공! URL: " + result.data.uploaded_url;
+                } else {
+                    status.innerText = "업로드 실패 ㅜㅜ";
+                }
+            } catch (error) {
+                console.error("[uploadFile] catch", error);
+            }
+        }
       </script>
     </div>
+    <script src="{% static 'js/common.js' %}"></script>
   </body>
 </html>
