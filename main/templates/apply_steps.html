@@ -1,70 +1,123 @@
 {% load static %}
 <!doctype html>
 <html lang="ko">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>서류 준비 - {{ policy.policy_name }}</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}" />
-  </head>
-  <body style="background-color: #f8f9fa; font-family: 'Pretendard', sans-serif">
+</head>
+<body style="background-color: #f8f9fa; font-family: 'Pretendard', sans-serif">
     <div class="container" style="max-width: 480px; margin: 0 auto; padding: 20px; padding-bottom: 100px;">
-      <div style="display: flex; align-items: center; margin-bottom: 20px">
-        <button onclick="history.back()" style="border: none; background: none; cursor: pointer; padding: 10px">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="19" y1="12" x2="5" y2="12"></line>
-            <polyline points="12 19 5 12 12 5"></polyline>
-          </svg>
-        </button>
-        <h2 style="font-size: 20px; margin: 0; margin-left: 10px">📝 서류 준비</h2>
-      </div>
-
-      <div style="background: #a8e6cf; border-radius: 24px; padding: 24px; color: #2d3748; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <h3 style="margin: 0 0 8px 0; font-size: 18px">{{ policy.policy_name }}</h3>
-          <p style="margin: 0; font-size: 14px; opacity: 0.8">서류를 등록하거나 AI로 작성하세요</p>
+        
+        <div style="display: flex; align-items: center; margin-bottom: 20px">
+            <button onclick="history.back()" style="border: none; background: none; cursor: pointer; padding: 10px">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+            </button>
+            <h2 style="font-size: 20px; margin: 0; margin-left: 10px">📝 서류 준비</h2>
         </div>
-        <div style="background: rgba(255, 255, 255, 0.5); padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 18px;">
-  {{ completed_count }}/{{ total_count }}
-</div>
-      </div>
 
-      <h3 style="font-size: 18px; margin-bottom: 15px; color: #2d3748">📋 필요 서류</h3>
+        <div style="background: #a8e6cf; border-radius: 24px; padding: 24px; color: #2d3748; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 style="margin: 0 0 8px 0; font-size: 18px">{{ policy.policy_name }}</h3>
+                <p style="margin: 0; font-size: 14px; opacity: 0.8">서류를 등록하거나 AI로 작성하세요</p>
+            </div>
+            <div style="background: rgba(255, 255, 255, 0.5); padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 18px;">
+                {{ completed_count }}/{{ total_count }}
+            </div>
+        </div>
 
-      <div class="doc-list">
-  {% for doc in required_docs %}
-  <div style="background: white; border-radius: 24px; padding: 24px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px">
-      <span style="font-size: 17px; font-weight: bold;">{{ doc.name }}</span>
-      {% if doc.is_mandatory %}
-      <span style="font-size: 11px; color: #ff4d4d; background: #fff5f5; padding: 2px 8px; border-radius: 4px; font-weight: bold;">필수</span>
-      {% endif %}
+        <h3 style="font-size: 18px; margin-bottom: 15px; color: #2d3748">📋 필요 서류</h3>
+
+        <div class="doc-list">
+            {% for doc in required_docs %}
+            <div class="doc-item" 
+                 data-doc-name="{{ doc.name }}" 
+                 style="background: white; border-radius: 20px; padding: 20px; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                
+                <div style="margin-bottom: 15px;">
+                    <span style="font-size: 17px; font-weight: bold; color: #2d3748;">{{ doc.name }}</span>
+                    {% if doc.is_mandatory %}
+                        <span style="color: #ff6b6b; font-size: 12px; margin-left: 5px;">(필수)</span>
+                    {% endif %}
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <input type="file" 
+                           class="file-input-field" 
+                           style="display: none;" 
+                           onchange="handleFileUpload(this, '{{ policy.policy_id }}')">
+
+                    {% if doc.is_uploaded %}
+                        <button onclick="window.open('{{ doc.file_url }}')" 
+                                style="flex: 1; background: #e2e8f0; color: #4a5568; border: none; padding: 12px; border-radius: 12px; font-size: 14px; cursor: pointer;">
+                            ✅ 업로드 완료(다운로드)
+                        </button>
+                    {% else %}
+                        <button type="button" 
+                                onclick="this.closest('.doc-item').querySelector('.file-input-field').click()"
+                                style="flex: 1; background: #f1f3f5; color: #4a5568; border: none; padding: 12px; border-radius: 12px; font-size: 14px; cursor: pointer;">
+                            📤 등록하기
+                        </button>
+                    {% endif %}
+
+                    {% if doc.can_ai %}
+                        <button onclick="location.href='/policy/apply/form/?id={{ policy.policy_id }}&doc={{ doc.name|urlencode }}{% if doc.is_completed %}&mode=view{% endif %}'" 
+                                style="flex: 1; background: #8e8ffa; color: white; border: none; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: bold; cursor: pointer;">
+                            {% if doc.is_completed %}작성본 보기{% else %}📝 AI 작성{% endif %}
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
-    
-    <div style="display: flex; gap: 10px">
-  <button style="flex: 1; background: #f1f3f5; color: #4a5568; border: none; padding: 12px; border-radius: 12px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
-    <span>📤</span> 등록하기
-  </button>
 
-  {% if doc.can_ai %}
-    {% if doc.is_completed %}
-      <button onclick="location.href='/policy/apply/form/?id={{ policy.policy_id }}&doc={{ doc.name }}&mode=view'" 
-              style="flex: 1; background: #e2e8f0; color: #4a5568; border: none; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: bold; cursor: pointer;">
-        ✅ 작성본 보기
-      </button>
-    {% else %}
-      <button onclick="location.href='/policy/apply/form/?id={{ policy.policy_id }}&doc={{ doc.name }}'" 
-              style="flex: 1; background: #8e8ffa; color: white; border: none; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
-        <span>📝</span> AI 작성
-      </button>
-    {% endif %}
-  {% endif %}
-</div>
-  </div>
-  {% empty %}
-  <p style="text-align: center; color: gray; padding: 50px 0;">인식된 서류가 없습니다.</p>
-  {% endfor %}
-</div>
-    </div>
-  </body>
+    <script>
+    function handleFileUpload(inputElement, policyId) {
+        const file = inputElement.files[0];
+        if (!file) return;
+
+        const container = inputElement.closest('.doc-item');
+        const docName = container.getAttribute('data-doc-name'); 
+        
+        console.log("JS 전송 시도 서류명:", docName);
+
+        const btn = container.querySelector('button'); 
+        const originalHtml = btn.innerHTML;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('id', policyId);
+        formData.append('doc', docName); 
+
+        btn.disabled = true;
+        btn.innerHTML = "<span>⏳</span> 처리 중...";
+
+        fetch('/api/upload_to_s3/', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(`[${docName}] 등록 성공!`);
+                location.reload(); 
+            } else {
+                alert('에러: ' + data.message);
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        })
+        .catch(err => {
+            console.error('Fetch Error:', err);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        });
+    }
+    </script>
+</body>
 </html>

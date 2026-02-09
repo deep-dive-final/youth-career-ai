@@ -10,13 +10,22 @@ from dotenv import load_dotenv
 import re
 from datetime import datetime
 from bson import ObjectId
+import boto3
+from django.conf import settings
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 GEMINI_MODEL = genai.GenerativeModel('models/gemini-2.5-flash')
 
-# 유틸리티 함수\
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+    region_name=settings.AWS_S3_REGION_NAME
+)
+
+# 유틸리티 함수
 def clean_doc_name(name):
     """서류 이름에서 괄호와 그 안의 내용을 제거 (예: '신청서(필수)' -> '신청서')"""
     if not name: return ""
@@ -31,18 +40,13 @@ def apply_steps(request):
     policy = db['policies'].find_one({"policy_id": policy_id})
     if not policy: return render(request, "index.html", {"error": "정책 없음"})
     
-    completed_docs = db['user_policy_document'].find(
-        {"user_id": "guest_user", "policy_id": policy_id}
-    )
-    
-    completed_names = []
-    for d in completed_docs:
-        name = d.get('doc_name') or d.get('document_type')
-        if name:
-            completed_names.append(name)
-            
-    print(f"DEBUG - 작성 완료된 서류들: {completed_names}") 
+    # AI 작성본 DB 조회 및 클리닝
+    completed_docs = list(db['user_policy_document'].find({"user_id": "guest_user", "policy_id": policy_id}))
+    completed_names = [clean_doc_name(d.get('doc_name') or d.get('document_type')) for d in completed_docs]
 
+    # 직접 업로드한 파일 DB 조회 및 클리닝
+    uploaded_files = list(db['user_policy_file'].find({"user_id": "guest_user", "policy_id": policy_id}))
+    
     submit_docs = policy.get('submit_documents', [])
     processed_docs = []
     
@@ -55,16 +59,23 @@ def apply_steps(request):
         is_ai_possible = any(kw in pure_name for kw in ["신청서", "동의서", "계획서", "자기소개서", "서식"]) \
                          and not any(ex in pure_name for ex in exclude_keywords)
 
-        is_completed = pure_name in completed_names
+        is_completed = any(clean_doc_name(name) == pure_name for name in completed_names)
+        
+        # 업로드된 파일 정보 찾기
+        file_info = next((f for f in uploaded_files if clean_doc_name(f.get('doc_name', '')) == pure_name), None)
+        is_uploaded = file_info is not None
+        file_url = file_info.get('file_url') if is_uploaded else "#"
 
         processed_docs.append({
             "name": raw_name,
             "is_mandatory": d.get('is_mandatory', False),
             "can_ai": is_ai_possible,
-            "is_completed": is_completed
+            "is_completed": is_completed,
+            "is_uploaded": is_uploaded,
+            "file_url": file_url  
         })
 
-    completed_count = len([d for d in processed_docs if d['is_completed']])
+    completed_count = len([d for d in processed_docs if d['is_completed'] or d['is_uploaded']])
 
     return render(request, "apply_steps.html", {
         "policy": policy, 
@@ -173,7 +184,7 @@ def get_form_fields(request):
         
         start_idx = res_text.find('{')
         end_idx = res_text.rfind('}') + 1
-        
+        \
         if start_idx != -1:
             return JsonResponse(json.loads(res_text[start_idx:end_idx]))
         
@@ -264,6 +275,50 @@ def get_saved_document(request):
     return JsonResponse({"status": "error"})
 
 
+@csrf_exempt
+def upload_to_s3(request):
+    if request.method == 'POST' and request.FILES.get('file'):
+        file = request.FILES['file']
+        policy_id = request.POST.get('id')
+        incoming_doc_name = request.POST.get('doc')
+        user_id = request.POST.get('user_id', 'guest_user')
+        
+        doc_name = clean_doc_name(incoming_doc_name) 
+        db = getMongoDbClient()
+
+        try:
+            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+            file_path = f"policy_{policy_id}/{user_id}/{doc_name}_{file.name}"
+            
+            s3_client.upload_fileobj(
+                file,
+                bucket_name,
+                file_path,
+                ExtraArgs={'ContentType': file.content_type}
+            )
+            
+            file_url = f"https://{bucket_name}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{file_path}"
+            
+            db['user_policy_file'].update_one(
+                {"policy_id": policy_id, "user_id": user_id, "doc_name": doc_name},
+                {"$set": {
+                    "policy_id": policy_id,
+                    "user_id": user_id,
+                    "doc_name": doc_name,
+                    "file_name": file.name,
+                    "file_url": file_url,
+                    "insert_at": datetime.now()
+                }},
+                upsert=True
+            )
+            
+            return JsonResponse({"status": "success", "url": file_url})
+            
+        except Exception as e:
+            print(f"S3 Upload Error: {e}")
+            return JsonResponse({"status": "error", "message": str(e)})
+
+    return JsonResponse({"status": "error", "message": "잘못된 요청입니다."})
 
 # 공통 데이터 및 검색 함수들 
 def index(request):
