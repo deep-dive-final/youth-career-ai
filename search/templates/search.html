@@ -1,0 +1,300 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>정책 검색 - 정책 추천 서비스</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="header-top" style="margin-bottom: 16px">
+          <button class="btn-icon" onclick="goBack()">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+          <h2 style="margin: 0">정책 검색</h2>
+          <div style="width: 44px"></div>
+        </div>
+      </div>
+
+      <div class="search-bar">
+        <div class="search-input-wrapper">
+          <svg
+            class="search-icon"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+          <input
+            type="text"
+            id="searchInput"
+            class="search-input"
+            placeholder="정책명, 키워드로 검색하세요"
+            oninput="handleSearch()"
+          />
+          <button class="filter-btn" onclick="toggleFilters()">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polygon
+                points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"
+              ></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div id="filterPanel" class="hidden" style="padding: 0 20px 16px">
+        <div
+          style="
+            background: white;
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+          "
+        >
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              margin-bottom: 16px;
+            "
+          >
+            <h3 style="margin: 0; font-size: 16px">필터</h3>
+            <button
+              onclick="resetFilters()"
+              style="
+                background: none;
+                border: none;
+                color: #7ec4cf;
+                cursor: pointer;
+                font-family: &quot;Jua&quot;, sans-serif;
+              "
+            >
+              초기화
+            </button>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">지원 형태</label>
+            <select
+              id="typeFilter"
+              class="form-select"
+              onchange="applyFilters()"
+            >
+              <option value="all">전체</option>
+              <option value="현금">현금</option>
+              <option value="서비스">서비스</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">카테고리</label>
+            <select
+              id="categoryFilter"
+              class="form-select"
+              onchange="applyFilters()"
+            >
+              <option value="all">전체</option>
+              <option value="주거">주거</option>
+              <option value="취업">취업</option>
+              <option value="창업">창업</option>
+              <option value="교육">교육</option>
+              <option value="생활">생활</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0">
+            <label class="form-label">소득 수준</label>
+            <select
+              id="incomeFilter"
+              class="form-select"
+              onchange="applyFilters()"
+            >
+              <option value="all">전체</option>
+              <option value="제한없음">제한없음</option>
+              <option value="50%">중위소득 50% 이하</option>
+              <option value="100%">중위소득 100% 이하</option>
+              <option value="150%">중위소득 150% 이하</option>
+              <option value="180%">중위소득 180% 이하</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div style="padding: 0 20px 24px">
+        <p
+          id="resultCount"
+          style="color: #7a8a9e; font-size: 14px; margin-bottom: 16px"
+        >
+          전체 5개 정책
+        </p>
+        <div
+          id="searchResults"
+          style="display: flex; flex-direction: column; gap: 16px"
+        ></div>
+
+        <div
+          id="noResults"
+          class="hidden"
+          style="text-align: center; padding: 60px 20px"
+        >
+          <div style="font-size: 48px; margin-bottom: 16px">🔍</div>
+          <h3 style="color: #2d3748; margin-bottom: 8px">
+            검색 결과가 없습니다
+          </h3>
+          <p style="color: #a0aec0; font-size: 14px">
+            다른 키워드로 검색해보세요
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Home Button -->
+    <button
+      id="floatingHome"
+      class="floating-home"
+      onclick="window.location.href = 'index.html'"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+      </svg>
+    </button>
+
+    <script src="{% static 'js/data.js' %}"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    <script>
+      let currentResults = [...POLICIES];
+
+      function renderResults(policies) {
+        const container = document.getElementById("searchResults");
+        const noResults = document.getElementById("noResults");
+        const resultCount = document.getElementById("resultCount");
+
+        if (policies.length === 0) {
+          container.innerHTML = "";
+          noResults.classList.remove("hidden");
+          resultCount.textContent = "검색 결과 0개";
+        } else {
+          noResults.classList.add("hidden");
+          resultCount.textContent = `전체 ${policies.length}개 정책`;
+
+          container.innerHTML = policies
+            .map(
+              (policy) => `
+          <a href="/policy/?id=${policy.id}" style="text-decoration: none;">
+            <div style="background: white; border-radius: 24px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)'">
+              <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                <span style="padding: 4px 12px; background: linear-gradient(to right, #a8e6cf, #7ec4cf); color: white; border-radius: 50px; font-size: 12px;">${policy.category}</span>
+                <span style="padding: 4px 12px; background: #ff7eb9; color: white; border-radius: 50px; font-size: 12px;">${policy.dday}</span>
+              </div>
+              <h4 style="font-size: 16px; color: #2d3748; margin-bottom: 8px;">${policy.name}</h4>
+              <p style="font-size: 20px; color: #7ec4cf; margin-bottom: 12px;">${policy.amount}</p>
+              <div style="background: linear-gradient(to bottom right, #f8f9fd, #e8f4f8); border-radius: 16px; padding: 12px; margin-bottom: 12px; font-size: 13px; color: #7a8a9e;">
+                💬 ${policy.comment}
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 12px; color: #a0aec0;">매칭률</span>
+                <span style="font-size: 16px; color: #7ec4cf; font-weight: bold;">${policy.match}%</span>
+              </div>
+            </div>
+          </a>
+        `,
+            )
+            .join("");
+        }
+      }
+
+      function handleSearch() {
+        const query = document.getElementById("searchInput").value;
+
+        if (query.trim() === "") {
+          currentResults = [...POLICIES];
+          applyFilters();
+        } else {
+          currentResults = searchPolicies(query);
+          applyFilters();
+        }
+      }
+
+      function applyFilters() {
+        const typeFilter = document.getElementById("typeFilter").value;
+        const categoryFilter = document.getElementById("categoryFilter").value;
+        const incomeFilter = document.getElementById("incomeFilter").value;
+
+        let filtered = [...currentResults];
+
+        if (typeFilter !== "all") {
+          filtered = filtered.filter((p) => p.type === typeFilter);
+        }
+
+        if (categoryFilter !== "all") {
+          filtered = filtered.filter((p) => p.category === categoryFilter);
+        }
+
+        if (incomeFilter !== "all") {
+          filtered = filtered.filter(
+            (p) => p.income.includes(incomeFilter) || p.income === "제한없음",
+          );
+        }
+
+        renderResults(filtered);
+      }
+
+      function toggleFilters() {
+        const panel = document.getElementById("filterPanel");
+        panel.classList.toggle("hidden");
+      }
+
+      function resetFilters() {
+        document.getElementById("typeFilter").value = "all";
+        document.getElementById("categoryFilter").value = "all";
+        document.getElementById("incomeFilter").value = "all";
+        document.getElementById("searchInput").value = "";
+        currentResults = [...POLICIES];
+        renderResults(currentResults);
+      }
+
+      // 초기 렌더링
+      document.addEventListener("DOMContentLoaded", () => {
+        renderResults(POLICIES);
+      });
+    </script>
+  </body>
+</html>

@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'survey',
     'policy',
     'site_admin',
+    'search',
 ]
 
 MIDDLEWARE = [
