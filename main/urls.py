@@ -11,5 +11,15 @@ urlpatterns = [
 
     path("policy/apply/form/", views.apply_form, name="apply_form"), # AI 신청서 페이지
 
-    path('policy/detail/', views.policy_detail, name='policy_detail'), #상세페이지
+    path("policy/", views.policy_detail, name='policy_detail'), #상세페이지
+
+    path("api/get_form_fields/", views.get_form_fields, name="get_form_fields"), # 서류별 동적 입력칸 생성 API
+    
+    path("api/ai_generate_motivation/", views.ai_generate_motivation, name="ai_generate_motivation"), # AI 답변 생성 api
+
+    path("policies/list/", views.policy_list, name="policy_list"), # 전체보기(정책 목록)
+
+    path("api/user_document_save/", views.save_application, name="save_app"), # 사용자 서류 저장 API
+
+    path("api/get_saved_document/", views.get_saved_document, name="get_saved_document"), # 저장된 사용자 서류 불러오기 API
 ]

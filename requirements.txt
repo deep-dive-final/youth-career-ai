@@ -2,3 +2,5 @@ pymongo
 python-dotenv
 sentence_transformers
 google-generativeai
+boto3
+google-genai

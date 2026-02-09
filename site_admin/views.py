@@ -1,12 +1,11 @@
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-from site_admin.data import fetch_policy_data
+from site_admin.data import fetch_policy_data, get_semantic_search_gemini, get_semantic_search_e5
 import json
-from sentence_transformers import SentenceTransformer
-from openai import OpenAI
-from utils.db import getMongoDbClient
 from bson import json_util
+import boto3
+from django.conf import settings
 
 def data(request):
     return render(request, "data.html", {})
@@ -22,80 +21,53 @@ def importData(request):
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 @csrf_exempt
-def getDataE5(request):
+def getSearchData(request):
     try:
-        search_text = request.GET.get('search-text')
+        search_text = request.GET.get('search_text')
+        search_type = request.GET.get('search_type')
 
-        # 1. 검색어도 동일한 모델로 임베딩 변환
-        model = SentenceTransformer('snunlp/KR-SBERT-V40K-klueNLI-augSTS')
-        query_vector = model.encode(search_text).tolist()
+        results = {}
+        if search_type == 'gemini':
+            results = get_semantic_search_gemini(search_text)
+        elif search_type == 'e5':
+            results = get_semantic_search_e5(search_text)
 
-        # 2. $vectorSearch 파이프라인 정의
-        pipeline = [
-            {
-                "$vectorSearch": {
-                    "index": "vector_index",           # 설정한 인덱스 이름
-                    "path": "embedding_sbert",          # 벡터 필드
-                    "queryVector": query_vector,  # 검색용 벡터
-                    "numCandidates": 20,         # 후보군 수
-                    "limit": 10                    # 최종 반환 결과 수
-                }
-            },
-            {
-                # 유사도 점수와 함께 필요한 필드만 가져오기
-                "$project": {
-                    "metadata": 1,
-                    "score": { "$meta": "vectorSearchScore" }
-                }
-            }
-        ]
-
-        # 3. 검색 수행
-        db = getMongoDbClient()
-        collection = db['policy_vectors']
-        results = collection.aggregate(pipeline)
         json_data = json.loads(json_util.dumps(list(results)))
 
         return JsonResponse({"status": "success", "data": json_data}, json_dumps_params={'ensure_ascii': False}, safe=False)
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
+# 파일 업로드
 @csrf_exempt
-def getDataGemini(request):
-    try:
-        search_text = request.GET.get('search-text')
-
-        # 1. 검색어도 동일한 모델로 임베딩 변환
-        model = SentenceTransformer('snunlp/KR-SBERT-V40K-klueNLI-augSTS')
-        query_vector = model.encode(search_text).tolist()
-
-        # 2. $vectorSearch 파이프라인 정의
-        pipeline = [
-            {
-                "$vectorSearch": {
-                    "index": "vector_index",           # 설정한 인덱스 이름
-                    "path": "embedding_sbert",          # 벡터 필드
-                    "queryVector": query_vector,  # 검색용 벡터
-                    "numCandidates": 20,         # 후보군 수
-                    "limit": 10                    # 최종 반환 결과 수
-                }
-            },
-            {
-                # 유사도 점수와 함께 필요한 필드만 가져오기
-                "$project": {
-                    "metadata": 1,
-                    "score": { "$meta": "vectorSearchScore" }
-                }
-            }
-        ]
-
-        # 3. 검색 수행
-        db = getMongoDbClient()
-        collection = db['policy_vectors']
-        results = collection.aggregate(pipeline)
-        json_data = json.loads(json_util.dumps(list(results)))
-
-        return JsonResponse({"status": "success", "data": json_data}, json_dumps_params={'ensure_ascii': False}, safe=False)
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+def upload_file(request):
+    if request.method != 'POST' or 'document_file' not in request.FILES:
+        return JsonResponse({"status": "error", "message": "Invalid request (file doesn't exist)"}, status=400)
     
+    try:
+        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+        region_name = settings.AWS_S3_REGION_NAME
+
+        s3 = boto3.client(
+            service_name="s3",
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            region_name=region_name,
+        )
+        
+        document_file = request.FILES.get("document_file")
+        
+        s3.upload_fileobj(
+            document_file,
+            bucket_name,
+            f"documents/{document_file.name}",
+            ExtraArgs={"ContentType": document_file.content_type},
+        )
+
+        uploaded_url = f"https://{bucket_name}.s3.{region_name}.amazonaws.com/documents/{document_file.name}"
+        
+        print(f"Uploaded file URL: {uploaded_url}")
+        return JsonResponse({"status": "success", "data": {"uploaded_url": uploaded_url}}, json_dumps_params={'ensure_ascii': False}, safe=False)
+    except Exception as e:
+        print(f"[upload_file] exception {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
