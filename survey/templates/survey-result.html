@@ -98,6 +98,12 @@
             id="recommendedPolicies"
             style="display: flex; flex-direction: column; gap: 16px"
           ></div>
+          <!-- ✅ 더보기 버튼 -->
+          <div style="text-align:center; margin-top: 12px;">
+            <button id="btnLoadMore" class="btn-secondary" style="display:none;">
+              더보기
+            </button>
+          </div>
         </div>
 
         <div style="display: flex; gap: 12px">
@@ -140,59 +146,165 @@
     <script src="{% static 'js/data.js' %}"></script>
     <script src="{% static 'js/main.js' %}"></script>
     <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        const answers = survey.getAnswers();
+    document.addEventListener("DOMContentLoaded", async () => {
+      const answers = survey.getAnswers();
 
-        if (Object.keys(answers).length === 0) {
-          // 설문을 하지 않았으면 설문 페이지로
-          window.location.href = "survey.html";
-          return;
+      if (Object.keys(answers).length === 0) {
+        window.location.href = "survey.html";
+        return;
+      }
+
+      // 설문 답변 표시
+      const answersContainer = document.getElementById("surveyAnswers");
+      answersContainer.innerHTML = SURVEY_QUESTIONS.map(
+        (q, index) => `
+          <div style="margin-bottom: 16px; padding-bottom: 16px; ${
+            index < SURVEY_QUESTIONS.length - 1 ? "border-bottom: 1px solid #f0f4f8;" : ""
+          }">
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">${q.question}</p>
+            <p style="font-size: 14px; color: #2d3748; margin: 0;">${answers[index + 1] || "-"}</p>
+          </div>
+        `
+      ).join("");
+
+      // -------------------------
+      // ✅ 추천 정책: 서버에서 가져오기
+      // -------------------------
+      function calcDday(endDateStr) {
+        if (!endDateStr) return "D-?";
+        const end = new Date(endDateStr);
+        const now = new Date();
+        const diff = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+        if (diff < 0) return "마감";
+        return `D-${diff}`;
+      }
+
+      function toMatchPercent(score) {
+        const v = Math.max(0, Math.min(1, Number(score) || 0));
+        return Math.round(v * 100);
+      }
+
+      // ✅ 서버는 topk를 무시하는 상태라 가정: "한 번만" 받아서 클라이언트에서 페이징
+      async function loadRecommendationsOnce() {
+        const res = await fetch(`/survey/api/recommend/`); // topk 제거 (무시되는 상태라 의미 없음)
+        const data = await res.json();
+
+        console.log("📦 recommend API response:", data);
+
+        if (!res.ok || !data.ok) {
+          console.error("recommend api error:", data);
+          return [];
         }
 
-        // 설문 답변 표시
-        const answersContainer = document.getElementById("surveyAnswers");
-        answersContainer.innerHTML = SURVEY_QUESTIONS.map(
-          (q, index) => `
-        <div style="margin-bottom: 16px; padding-bottom: 16px; ${index < SURVEY_QUESTIONS.length - 1 ? "border-bottom: 1px solid #f0f4f8;" : ""}">
-          <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">${q.question}</p>
-          <p style="font-size: 14px; color: #2d3748; margin: 0;">${answers[index + 1] || "-"}</p>
-        </div>
-      `,
-        ).join("");
+        const items = data.items || [];
 
-        // 추천 정책 표시 (상위 5개)
-        const topPolicies = POLICIES.slice(0, 5);
-        const policiesContainer = document.getElementById(
-          "recommendedPolicies",
-        );
+        // ✅ 안전장치: policy_id 기준 중복 제거
+        const uniq = [];
+        const seen = new Set();
+        for (const it of items) {
+          const key = it.policy_id ?? JSON.stringify(it);
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniq.push(it);
+          }
+        }
+        return uniq;
+      }
 
-        policiesContainer.innerHTML = topPolicies
-          .map(
-            (policy) => `
-        <a href="/policy?id=${policy.id}" style="text-decoration: none;">
-          <div style="background: white; border-radius: 24px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)'">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
-              <span style="padding: 4px 12px; background: linear-gradient(to right, #a8e6cf, #7ec4cf); color: white; border-radius: 50px; font-size: 12px;">${policy.category}</span>
-              <span style="padding: 4px 12px; background: #ff7eb9; color: white; border-radius: 50px; font-size: 12px;">${policy.dday}</span>
-            </div>
-            <h4 style="font-size: 16px; color: #2d3748; margin-bottom: 8px;">${policy.name}</h4>
-            <p style="font-size: 20px; color: #7ec4cf; margin-bottom: 12px;">${policy.amount}</p>
-            <div style="background: linear-gradient(to bottom right, #f8f9fd, #e8f4f8); border-radius: 16px; padding: 12px; margin-bottom: 12px; font-size: 13px; color: #7a8a9e;">
-              💬 ${policy.comment}
-            </div>
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-              <span style="font-size: 12px; color: #a0aec0;">매칭률</span>
-              <span style="font-size: 16px; color: #7ec4cf; font-weight: bold;">${policy.match}%</span>
-            </div>
-          </div>
-        </a>
-      `,
-          )
+      const policiesContainer = document.getElementById("recommendedPolicies");
+      const btnLoadMore = document.getElementById("btnLoadMore");
+      const matchCountEl = document.getElementById("matchCount");
+
+      const PAGE_SIZE = 5;
+      let shown = PAGE_SIZE;     // 현재 화면에 보여줄 개수
+      let allItems = [];         // 서버에서 받은 전체 추천 목록
+
+      function renderPolicies(itemsToShow) {
+        policiesContainer.innerHTML = itemsToShow
+          .map((p) => {
+            const dday = calcDday(p.apply_end_date);
+            const match = toMatchPercent(p.score);
+            const detailUrl = `/policy/detail/?id=${encodeURIComponent(p.policy_id)}`;
+
+            return `
+              <a href="${detailUrl}" style="text-decoration: none;">
+                <div style="background: white; border-radius: 24px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: all 0.3s;"
+                    onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.1)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)'">
+
+                  <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                    <span style="padding: 4px 12px; background: linear-gradient(to right, #a8e6cf, #7ec4cf); color: white; border-radius: 50px; font-size: 12px;">
+                      ${p.category || "기타"}
+                    </span>
+                    <span style="padding: 4px 12px; background: #ff7eb9; color: white; border-radius: 50px; font-size: 12px;">
+                      ${dday}
+                    </span>
+                  </div>
+
+                  <h4 style="font-size: 16px; color: #2d3748; margin-bottom: 8px;">
+                    ${p.name || "(제목없음)"}
+                  </h4>
+
+                  <div style="font-size: 12px; color: #7a8a9e; margin-bottom: 12px;">
+                    🗺️ ${p.region || "전국"} ${p.agency ? ` · 🏛️ ${p.agency}` : ""}
+                  </div>
+
+                  <div style="background: linear-gradient(to bottom right, #f8f9fd, #e8f4f8); border-radius: 16px; padding: 12px; margin-bottom: 12px; font-size: 13px; color: #7a8a9e;">
+                    💬 ${p.reason_snippet ? p.reason_snippet : "내 상황과 유사한 조건의 정책이에요!"}
+                  </div>
+
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <span style="font-size: 12px; color: #a0aec0;">매칭률</span>
+                    <span style="font-size: 16px; color: #7ec4cf; font-weight: bold;">${match}%</span>
+                  </div>
+                </div>
+              </a>
+            `;
+          })
           .join("");
+      }
 
-        document.getElementById("matchCount").textContent =
-          `${topPolicies.length}개`;
+      function updateUI() {
+        // ✅ 총 매칭 개수는 항상 "전체" 기준
+        matchCountEl.textContent = `${allItems.length}개`;
+
+        const itemsToShow = allItems.slice(0, shown);
+        renderPolicies(itemsToShow);
+
+        // ✅ 더보기 버튼: 아직 남아있으면 노출
+        if (shown >= allItems.length) {
+          btnLoadMore.style.display = "none";
+        } else {
+          btnLoadMore.style.display = "inline-block";
+        }
+      }
+
+      // ✅ 초기 로딩
+      policiesContainer.innerHTML = `<div style="color:#7a8a9e; font-size:14px;">추천 정책을 불러오는 중...</div>`;
+      btnLoadMore.style.display = "none";
+
+      allItems = await loadRecommendationsOnce();
+
+      if (allItems.length === 0) {
+        policiesContainer.innerHTML = `
+          <div style="color:#7a8a9e; font-size:14px;">
+            추천 정책이 없어요. 설문을 다시 해보거나 조건을 바꿔보세요.
+          </div>
+        `;
+        matchCountEl.textContent = `0개`;
+        return;
+      }
+
+      // 처음엔 5개만 보여주기
+      shown = Math.min(PAGE_SIZE, allItems.length);
+      updateUI();
+
+      // ✅ 더보기: 5개씩 추가
+      btnLoadMore.addEventListener("click", () => {
+        shown = Math.min(shown + PAGE_SIZE, allItems.length);
+        updateUI();
       });
-    </script>
+    });
+  </script>
   </body>
 </html>

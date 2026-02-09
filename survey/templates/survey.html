@@ -119,13 +119,20 @@
 
         // 이전 답변이 있으면 선택 표시
         if (answers[currentStep]) {
-          const selectedBtn = content.querySelector(
-            `[data-value="${answers[currentStep]}"]`,
-          );
-          if (selectedBtn) {
-            selectedBtn.classList.add("selected");
+          if (currentStep === 2 && Array.isArray(answers[currentStep])) {
+            answers[currentStep].forEach((v) => {
+              const btn = content.querySelector(`[data-value="${v}"]`);
+              if (btn) btn.classList.add("selected");
+            });
+            document.getElementById("nextBtn").disabled =
+              answers[currentStep].length === 0;
+          } else {
+            const selectedBtn = content.querySelector(
+              `[data-value="${answers[currentStep]}"]`
+            );
+            if (selectedBtn) selectedBtn.classList.add("selected");
+            document.getElementById("nextBtn").disabled = false;
           }
-          document.getElementById("nextBtn").disabled = false;
         }
 
         // 진행률 업데이트
@@ -142,33 +149,78 @@
       }
 
       function selectOption(value) {
-        // 모든 버튼의 선택 해제
+        // ✅ 관심 분야(step 2)는 다중 선택
+        if (currentStep === 2) {
+          if (!Array.isArray(answers[currentStep])) {
+            answers[currentStep] = [];
+          }
+
+          const idx = answers[currentStep].indexOf(value);
+          const btn = document.querySelector(`[data-value="${value}"]`);
+
+          if (idx === -1) {
+            // 선택 추가
+            answers[currentStep].push(value);
+            btn.classList.add("selected");
+          } else {
+            // 선택 해제
+            answers[currentStep].splice(idx, 1);
+            btn.classList.remove("selected");
+          }
+
+          // 하나라도 선택되면 다음 활성화
+          document.getElementById("nextBtn").disabled =
+            answers[currentStep].length === 0;
+
+          return;
+        }
+
+        // ✅ 나머지 step은 기존 단일 선택
         document.querySelectorAll(".option-btn").forEach((btn) => {
           btn.classList.remove("selected");
         });
 
-        // 선택한 버튼 활성화
         const selectedBtn = document.querySelector(`[data-value="${value}"]`);
         if (selectedBtn) {
           selectedBtn.classList.add("selected");
         }
 
-        // 답변 저장
         answers[currentStep] = value;
-
-        // 다음 버튼 활성화
         document.getElementById("nextBtn").disabled = false;
       }
 
-      function nextStep() {
+
+      async function nextStep() {
         if (!answers[currentStep]) {
           alert("답변을 선택해주세요.");
           return;
         }
 
         if (currentStep === SURVEY_QUESTIONS.length) {
-          // 설문 완료
+          // 설문 완료 (localStorage 저장)
           survey.saveAnswers(answers);
+
+          // ✅ 서버(MongoDB)에도 저장
+          try {
+            const res = await fetch("/survey/api/save/", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ answers }),
+            });
+
+            const data = await res.json();
+            console.log("✅ save api response:", data);
+
+            if (!res.ok || !data.ok) {
+              alert("설문 저장에 실패했어요. 콘솔을 확인해주세요.");
+              return;
+            }
+          } catch (e) {
+            console.error("❌ save error:", e);
+            alert("서버 저장 중 오류가 발생했어요.");
+            return;
+          }
+
           window.location.href = "/survey/result";
         } else {
           currentStep++;
