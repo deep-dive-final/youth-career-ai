@@ -1,0 +1,151 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>자격 진단 - {{ policy.policy_name }}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body style="background-color: #f8f9fa; font-family: 'Pretendard', sans-serif;">
+    <div class="container" style="max-width: 480px; margin: 0 auto; background: #f8f9fa; min-height: 100vh; padding-bottom: 100px;">
+        <div style="padding: 20px; background: white; display: flex; align-items: center; gap: 15px; position: sticky; top: 0; z-index: 100;">
+            <button onclick="history.back()" style="border:none; background:none; cursor:pointer; padding: 0;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2d3748" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <h2 style="margin:0; font-size:18px; color: #2d3748; font-weight: 700;">정책 상세</h2>
+        </div>
+
+        <div style="padding: 20px;">
+            <div style="background: linear-gradient(135deg, #a8e6cf 0%, #dcedc1 100%); color: #2d3748; padding: 28px 24px; border-radius: 24px; margin-bottom: 24px; box-shadow: 0 10px 20px rgba(168, 230, 207, 0.2);">
+                <span style="background: rgba(255,255,255,0.6); padding: 4px 12px; border-radius: 50px; font-size: 12px; font-weight: bold; color: #4b7f6e;">{{ policy.category|default:"분류" }}</span>
+                <h3 style="margin:12px 0 0 0; font-size:22px; font-weight: 800; line-height: 1.4; color: #2d4a41;">신청 자격 요건을<br>확인해볼까요?</h3>
+            </div>
+
+            <div id="qa-list">
+                <p style="text-align:center; color:#a0aec0; padding: 40px 0;">조건을 분석하고 있습니다...</p>
+            </div>
+
+            <button id="show-result" disabled onclick="calculateResult()" 
+                style="width: 100%; padding: 20px; border-radius: 20px; border:none; background: #cbd5e0; color:white; font-weight:bold; font-size:17px; cursor:pointer; margin-top: 20px; transition: all 0.3s ease;">
+                결과 확인하기
+            </button>
+        </div>
+    </div>
+
+    <div id="result-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:2000; align-items:center; justify-content:center; padding:20px; backdrop-filter: blur(8px);">
+        <div style="background:white; width:100%; max-width:400px; border-radius:32px; padding:32px; text-align:center;">
+            <div id="result-icon" style="font-size: 64px; margin-bottom: 20px;"></div>
+            <h3 id="result-title" style="font-size: 24px; margin-bottom: 12px; color: #2d3748; font-weight: 800;"></h3>
+            <p id="result-desc" style="color:#718096; font-size:15px; line-height:1.6; margin-bottom: 30px;"></p>
+            <button onclick="location.href='/policy/apply/?id={{ policy_id }}'" id="apply-btn" style="width:100%; padding:18px; border-radius:16px; border:none; background:#6abda6; color:white; font-weight:bold; margin-bottom:12px; font-size: 16px;">서류 준비하러 가기</button>
+            <button onclick="document.getElementById('result-modal').style.display='none'" style="width:100%; padding:18px; border-radius:16px; border:1px solid #edf2f7; background:white; color:#a0aec0; font-weight: 600;">닫기</button>
+        </div>
+    </div>
+
+    <script>
+    const policyId = "{{ policy_id }}";
+    
+    let userInfo = {};
+    const userInfoRaw = '{{ user_info|safe|default:"{}" }}';
+    try {
+        userInfo = JSON.parse(userInfoRaw.replace(/'/g, '"'));
+    } catch(e) {
+        console.warn("User info parsing failed or empty");
+    }
+    
+    let questionsData = [];
+    let userChoices = {};
+
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch(`/api/get_policy_requirements/?id=${policyId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    questionsData = data.questions || data.items || [];
+                    renderQuestions();
+                }
+            })
+            .catch(err => {
+                document.getElementById('qa-list').innerHTML = `<p style="text-align:center; color:#e53e3e;">데이터를 불러오지 못했습니다.</p>`;
+            });
+    });
+
+    function renderQuestions() {
+        const container = document.getElementById('qa-list');
+        container.innerHTML = questionsData.map((q, i) => {
+            const currentChoice = userChoices[i];
+            const qText = q.question || q.text || "조건을 확인해주세요.";
+
+            return `
+            <div style="background:white; padding:24px; border-radius:24px; margin-bottom:16px; box-shadow:0 8px 20px rgba(0,0,0,0.03); border: 1px solid #f1f3f5;">
+                <div style="display:flex; align-items:flex-start; gap:12px; margin-bottom:20px;">
+                    <div style="min-width:24px; height:24px; background:#e0f7f1; color:#4b7f6e; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800;">${i+1}</div>
+                    <p style="margin:0; font-size:16px; font-weight:700; color:#2d3748; line-height:1.5;">${qText}</p>
+                </div>
+                <div style="display:flex; gap:12px;">
+                    <button onclick="setChoice(${i}, 'yes')" 
+                        style="flex:1; padding:16px; border-radius:16px; font-weight:bold; transition:all 0.2s;
+                        ${currentChoice === 'yes' 
+                            ? 'background:#6abda6; color:white; border:none; box-shadow: 0 4px 12px rgba(106,189,166,0.3);' 
+                            : 'background:#f8f9fa; color:#718096; border:1px solid #edf2f7;'}">
+                        예
+                    </button>
+                    <button onclick="setChoice(${i}, 'no')" 
+                        style="flex:1; padding:16px; border-radius:16px; font-weight:bold; transition:all 0.2s;
+                        ${currentChoice === 'no' 
+                            ? 'background:#6abda6; color:white; border:none; box-shadow: 0 4px 12px rgba(106,189,166,0.3);' 
+                            : 'background:#f8f9fa; color:#718096; border:1px solid #edf2f7;'}">
+                        아니오
+                    </button>
+                </div>
+            </div>
+            `;
+        }).join('');
+        checkAllAnswered();
+    }
+
+    function setChoice(index, choice) {
+        userChoices[index] = choice;
+        renderQuestions();
+    }
+
+    function checkAllAnswered() {
+        const btn = document.getElementById('show-result');
+        if (Object.keys(userChoices).length === questionsData.length && questionsData.length > 0) {
+            btn.disabled = false;
+            btn.style.background = '#4b7f6e'; 
+            btn.style.boxShadow = '0 8px 20px rgba(75, 127, 110, 0.2)';
+        }
+    }
+
+    function calculateResult() {
+        let isEligible = true;
+        questionsData.forEach((q, i) => {
+            const choice = userChoices[i];
+            if (q.type === 'exclusion' && choice === 'yes') isEligible = false;
+            if (q.type === 'condition' && choice === 'no') isEligible = false;
+        });
+
+        const modal = document.getElementById('result-modal');
+        const icon = document.getElementById('result-icon');
+        const title = document.getElementById('result-title');
+        const desc = document.getElementById('result-desc');
+
+        if (isEligible) {
+            icon.innerText = "🎉";
+            title.innerText = "신청하기에 적합해요!";
+            desc.innerHTML = "모든 자격 요건을 충족하시는 것 같네요.<br>준비 서류를 확인하고 바로 신청해보세요!";
+            document.getElementById('apply-btn').style.display = "block";
+            document.getElementById('apply-btn').style.background = "#6abda6";
+        } else {
+            icon.innerText = "😥";
+            title.innerText = "확인이 필요해요";
+            desc.innerHTML = "일부 조건이 맞지 않거나 제외 대상에 해당할 수 있습니다.<br>상세 공고문을 다시 한번 확인해주세요.";
+            document.getElementById('apply-btn').style.display = "none";
+        }
+        modal.style.display = "flex";
+    }
+    </script>
+</body>
+</html>

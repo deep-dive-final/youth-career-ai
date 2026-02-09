@@ -1,5 +1,4 @@
 {% load static %}
-
 <!doctype html>
 <html lang="ko">
   <head>
@@ -15,49 +14,34 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
         </button>
         <h2 style="margin: 0; font-size: 18px;">정책 상세</h2>
-        <button id="saveBtn" class="btn-icon" style="border: none; background: none; cursor: pointer;">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
-        </button>
+        <div style="width: 24px;"></div>
       </div>
 
-      <div id="policyContent" style="padding: 20px 20px 120px">
-        {% if policy %} <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
-          <div style="display: flex; gap: 8px; margin-bottom: 12px">
-            <span style="padding: 4px 12px; background: #a8e6cf; color: #2d3748; border-radius: 50px; font-size: 12px; font-weight: bold;">
-              {{ policy.category|default:"일자리" }}
-            </span>
-          </div>
-          <h1 style="font-size: 22px; color: #2d3748; margin: 0 0 12px 0; line-height: 1.4;">
-            {{ policy.policy_name }}
-          </h1>
+      <div style="padding: 20px 20px 120px;">
+        {% if policy %}
+        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
+          <span style="display: inline-block; padding: 4px 12px; background: #a8e6cf; color: #2d3748; border-radius: 50px; font-size: 12px; font-weight: bold; margin-bottom: 12px;">{{ policy.category|default:"일자리" }}</span>
+          <h1 style="font-size: 22px; color: #2d3748; margin: 0 0 12px 0; line-height: 1.4;">{{ policy.policy_name }}</h1>
           <p style="font-size: 14px; color: #a0aec0; margin: 0;">조회수: {{ policy.view_count|default:"0" }}</p>
         </div>
 
         <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
           <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">✅ 신청 자격</h3>
-          <div style="color: #4a5568; font-size: 14px; line-height: 1.8">
-            <p style="margin-bottom: 10px">
-              <strong>대상:</strong> {{ age_text|default:"만 18세 ~ 39세" }}
-            </p>
-            <p style="margin: 0">
-              <strong>기타 조건:</strong> {{ target_text|default:"상세 조건 확인 필요" }}
-            </p>
+          <p style="font-size: 14px; color: #4a5568; margin-bottom: 15px;">
+            <strong>대상 연령:</strong> 만 {{ policy.eligibility.age_min }}세 ~ {{ policy.eligibility.age_max }}세
+          </p>
+          
+          <div style="border-top: 1px dashed #edf2f7; padding-top: 15px;">
+            <p style="font-size: 15px; font-weight: bold; color: #2d3748; margin-bottom: 10px;">📋 기타 조건 요약</p>
+            <ul id="requirement-list" style="margin: 0; padding-left: 0; list-style: none; font-size: 13px; line-height: 1.8;">
+              <li style="color: #a0aec0;">조건을 분석하고 있습니다...</li>
+            </ul>
           </div>
         </div>
 
         <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
-          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">📄 필요 서류</h3>
-          <div style="color: #718096; font-size: 14px; line-height: 1.8;">
-            
-            {% if submit_docs %}
-              {% for doc in submit_docs %}
-                <p style="margin-bottom: 8px;">• {{ doc.document_name }}</p>
-              {% endfor %}
-            {% else %}
-              <p>공식 홈페이지를 참고해 주세요.</p>
-            {% endif %}
-
-          </div>
+          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">💰 지원 내용</h3>
+          <div style="color: #4a5568; font-size: 14px; line-height: 1.7;">{{ policy.support_content|linebreaks }}</div>
         </div>
 
         <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
@@ -68,23 +52,55 @@
           </div>
           <div>
             <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">공식 홈페이지</p>
-            <a href="{{ link }}" target="_blank" style="font-size: 14px; color: #7ec4cf; text-decoration: none; font-weight: bold;">
-  바로가기 (클릭) ↗
-</a>
+            <a href="{{ link }}" target="_blank" style="font-size: 14px; color: #7ec4cf; text-decoration: none; font-weight: bold;">바로가기 (클릭) ↗</a>
           </div>
         </div>
-
-        {% else %} <div style="text-align: center; padding: 100px 20px">
+        {% else %}
+        <div style="text-align: center; padding: 100px 20px">
           <h3 style="color: #2d3748;">정책 정보를 찾을 수 없습니다.</h3>
         </div>
-        {% endif %} </div>
+        {% endif %}
+      </div>
     </div>
 
     <div style="position: fixed; bottom: 0; left: 0; right: 0; padding: 20px; background: white; border-top: 1px solid #f1f3f5; display: flex; gap: 12px; z-index: 1000;">
       <div style="max-width: 480px; margin: 0 auto; width: 100%; display: flex; gap: 12px;">
-        <a href="/policy/apply/?id={{ policy.policy_id }}" style="flex: 1; text-align: center; background: #a8e6cf; color: #2d3748; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px;">📝 서류 준비</a>
-        <a href="/policy/simulate/?id={{ policy.policy_id }}" style="flex: 1; text-align: center; background: #ffaaa5; color: white; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px;">🧪 시뮬레이션</a>
+        <a href="/policy/apply/?id={{ policy.policy_id }}" style="flex: 1; text-align: center; background: #f1f3f5; color: #4a5568; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px;">📝 서류 준비</a>
+        <a href="/policy/simulate/?id={{ policy.policy_id }}" style="flex: 1; text-align: center; background: #8e8ffa; color: white; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px;">🔍 자격 확인하기</a>
       </div>
     </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          const policyId = "{{ policy.policy_id }}";
+          const listElement = document.getElementById('requirement-list');
+
+          if (policyId && listElement) {
+              fetch(`/api/get_policy_requirements/?id=${policyId}`)
+                  .then(response => response.json())
+                  .then(data => {
+                      if (data.status === 'success' && data.questions && data.questions.length > 0) {
+                          listElement.innerHTML = data.questions.map(q => {
+                              if (q.type === 'exclusion') {
+                                  return `<li style="margin-bottom: 8px; color: #e53e3e; font-weight: 500; display: flex; align-items: flex-start;">
+                                            <span style="margin-right: 6px;">🚫</span>
+                                            <span><b style="color: #e53e3e;">[제외대상]</b> ${q.text}</span>
+                                          </li>`;
+                              }
+                              return `<li style="margin-bottom: 8px; color: #4f46e5; display: flex; align-items: flex-start;">
+                                        <span style="margin-right: 6px;">•</span>
+                                        <span>${q.text}</span>
+                                      </li>`;
+                          }).join('');
+                      } else {
+                          listElement.innerHTML = "<li style='color: #a0aec0;'>상세 공고 내용을 확인해주세요.</li>";
+                      }
+                  })
+                  .catch(err => {
+                      listElement.innerHTML = "<li style='color: #e53e3e;'>조건을 불러오는 데 실패했습니다.</li>";
+                  });
+          }
+      });
+    </script>
   </body>
 </html>
