@@ -6,9 +6,14 @@ import json
 from bson import json_util
 import boto3
 from django.conf import settings
+from bson import ObjectId
+from utils.db import getMongoDbClient
 
 def data(request):
     return render(request, "data.html", {})
+
+def data_list(request):
+    return render(request, "list.html", {})
 
 @csrf_exempt
 def importData(request):
@@ -71,3 +76,54 @@ def upload_file(request):
     except Exception as e:
         print(f"[upload_file] exception {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    
+@csrf_exempt
+def get_keyword_data(request):
+    try:
+        page_num = request.GET.get('num')
+        page_size = request.GET.get('size')
+        search_text = request.GET.get('search_text')
+
+        db = getMongoDbClient()
+        keywords_collection = db["search_keywords_temp"]
+
+        skip_count = (int(page_num) - 1) * int(page_size)
+        keyword_result = keywords_collection.find().sort("_id", 1).skip(skip_count).limit(int(page_size))
+        json_data = json.loads(json_util.dumps(list(keyword_result)))
+
+        return JsonResponse({"status": "success", "data": json_data}, json_dumps_params={'ensure_ascii': False}, safe=False)
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    
+@csrf_exempt
+def set_keyword_data(request):
+    try:
+        body_unicode = request.body.decode('utf-8')
+        body_data = json.loads(body_unicode)
+        id = body_data.get('id')
+        region = body_data.get('region')
+        education = body_data.get('education')
+        income_level = body_data.get('income_level')
+
+        db = getMongoDbClient()
+        keywords_collection = db["search_keywords_temp"]
+
+        result = keywords_collection.update_one(
+            {"_id": ObjectId(id)},
+            {
+                "$set": {
+                    "region": region.split(","),
+                    "education": education.split(","),
+                    "income.min": int(income_level.split(",")[0]) if income_level else -1,
+                    "income.max": int(income_level.split(",")[1]) if len(income_level.split(",")) > 1 else -1,
+                }
+            }
+        )
+
+        print(f"Updated document count: {result.modified_count}")
+
+        return JsonResponse({"status": "success", "data": {"modified_count": result.modified_count}}, json_dumps_params={'ensure_ascii': False}, safe=False)
+    except Exception as e:
+        print(f"[set_keyword_data] exception {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    
