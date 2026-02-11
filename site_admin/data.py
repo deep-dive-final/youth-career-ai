@@ -247,7 +247,7 @@ def get_api_db_field_map() :
         "earnMinAmt" : "earn.min_amt",
         "earnMaxAmt" : "earn.max_amt",
         "earnEtcCn" : "earn.etc_content",
-        "ptcpPrpTrgtCn" : "participate_target",
+        "ptcpPrpTrgtCn" : "restricted_target",
         "inqCnt" : "view_count",
         "frstRegDt" : "registered_at",
         "lastMdfcnDt" : "modified_at"
