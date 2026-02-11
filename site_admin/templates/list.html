@@ -1,0 +1,161 @@
+{% load static %}
+<html>
+  <head>
+    <title>Data Page</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+  <body>
+    <div id="container">
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 데이터 조회</h1>
+        <div>
+          <div>
+            페이지 번호: <input id="txt-page-num" type="text" style="width:40px;" class="border border-gray-300 px-1 py-0.5"></input> 
+            페이지 사이즈: <input id="txt-page-size" type="text" style="width:40px;" class="border border-gray-300 px-1 py-0.5"></input><br/>
+          </div>
+          <div class="pt-2">
+            <input id="txt-search" type="text" class="border border-gray-300 px-1 py-0.5" style="width:50%" placeholder="검색어를 입력하세요."></input>
+            <input id="btn-get-data" type="button" class="px-3 py-1 border border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-md hover:bg-gray-100" value="데이터 불러오기" />
+          </div>
+        </div>
+        <div>
+            <div id="divSearchContent"></div>
+        </div>
+      </div>
+
+      <script>
+        // 데이터 불러오기
+        document.querySelector("#btn-get-data").onclick = function() {
+          getKeywordData();
+        };
+
+        document.querySelector("#txt-search").onkeydown = function(event) {
+          if (event.key !== 'Enter') 
+            return;
+
+          getKeywordData();
+        };
+
+        function getKeywordData() {
+            
+            page_num = document.querySelector("#txt-page-num").value.trim();
+            page_size = document.querySelector("#txt-page-size").value.trim();
+            search_text = document.querySelector("#txt-search").value.trim();
+
+            fetch(`/site_admin/api/getKeywordData?num=${page_num}&size=${page_size}&search_text=${search_text}`, {
+                method: "GET",
+                headers: {
+                "Content-Type": "application/json",
+                },
+            })
+            .then((response) => response.json())
+            .then((result) => {
+              console.log("keyword result", result);
+              getKeywordData_callback(result.data);
+            })
+            .catch((error) => {
+              console.error("Error fetching expense data:", error);
+            });
+        }
+
+        function getKeywordData_callback (data) {
+
+            var divContent = document.querySelector("#divSearchContent");
+            divContent.innerHTML = "";
+
+            data.forEach(function(item) {
+
+                var divItem = document.createElement("div");
+                divItem.className = "p-2 border-b border-pink-300";
+
+                var divDetail = document.createElement("div");
+                divDetail.innerHTML = item.original_text.replace(/\r?\n/g, '<br>');
+                divDetail.className = "text-gray-500";
+                divDetail.style.fontSize = "13px";
+
+                var txtRegion = document.createElement("input");
+                txtRegion.type = "text";
+                txtRegion.style.width = "400px";
+                txtRegion.className = "m-1 border border-gray-300";
+                txtRegion.value = item.region;
+
+                var txtId = document.createElement("input");
+                txtId.type = "text";
+                txtId.style.width = "400px";
+                txtId.className = "m-1 border border-gray-300";
+                txtId.value = item._id.$oid;
+                
+                var txtEducation = document.createElement("input");
+                txtEducation.type = "text";
+                txtEducation.style.width = "400px";
+                txtEducation.className = "m-1 border border-gray-300";
+                txtEducation.value = item.education;
+                txtEducation.placeholder = "학력";
+
+                if (!item.education || item.education.length === 0)
+                    txtEducation.value = "학력무관";
+
+                var txtIncomeLevel = document.createElement("input");
+                txtIncomeLevel.type = "text";
+                txtIncomeLevel.style.width = "400px";
+                txtIncomeLevel.className = "m-1 border border-gray-300";
+                txtIncomeLevel.value = item.income_level;
+                txtIncomeLevel.placeholder = "소득수준";
+
+                if (!item.income_level || item.income_level.length === 0)
+                    txtIncomeLevel.value = "-1,999";
+
+                var btnSave = document.createElement("input");
+                btnSave.type = "button";
+                btnSave.style.cursor = "pointer";
+                btnSave.className = "m-1 border border-gray-300";
+                btnSave.value = " 저장 ";
+                btnSave.onclick = function() {
+                    setKeywordData(item._id.$oid, txtRegion.value, txtEducation.value, txtIncomeLevel.value);
+                }
+
+                divItem.appendChild(divDetail);
+                divItem.appendChild(txtId);
+                divItem.appendChild(txtRegion);
+                divItem.appendChild(txtEducation);
+                divItem.appendChild(txtIncomeLevel);
+                divItem.appendChild(btnSave);
+                divContent.appendChild(divItem);
+          });
+        }
+
+        // 키워드 데이터 저장
+        function setKeywordData (id, region, education, income_level) {
+            fetch("/site_admin/api/setKeywordData", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                id: id,
+                region: region,
+                education: education,
+                income_level: income_level
+            }),
+          })
+            .then((response) => response.json())
+            .then((result) => {
+              console.log("set keyword result", result);
+
+              if (result.status === "success") {
+                alert("저장되었습니다.");
+              } else {
+                alert("저장에 실패하였습니다.");
+              }
+            })
+            .catch((error) => {
+              console.error("setKeywordData catch:", error);
+            });
+        
+        }
+      </script>
+    </div>
+    <script src="{% static 'js/common.js' %}"></script>
+  </body>
+</html>
