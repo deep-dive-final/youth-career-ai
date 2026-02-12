@@ -11,4 +11,6 @@ urlpatterns = [
     path("api/getKeywordData", views.get_keyword_data, name="getKeywordData"),
     path("api/setKeywordData", views.set_keyword_data, name="setKeywordData"),
     path("chart", views.chart, name="chart"),
+    path("api/chart/getData", views.get_data_for_chart, name="getChartData"),
+    path("api/chart/getArrayData", views.get_arr_data_for_chart, name="getArrayChartData"),
 ]

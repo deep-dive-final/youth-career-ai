@@ -1,33 +1,231 @@
 <html>
-  <head></head>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
   <body>
-    <div>
-      <canvas id="myChart"></canvas>
+    <div id="container">
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 카테고리</h1>
+        <div>
+          <canvas id="chartCategory"></canvas>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 지역</h1>
+        <div>
+          <canvas id="chartRegion"></canvas>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 학력</h1>
+        <div>
+          <canvas id="chartEducation"></canvas>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 취업 요건</h1>
+        <div>
+          <canvas id="chartJob"></canvas>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 정책 제공 방법</h1>
+        <div>
+          <canvas id="chartMethod"></canvas>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 정책 특화 요건</h1>
+        <div>
+          <canvas id="chartSpecificType"></canvas>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 소득수준</h1>
+        <div>
+          <canvas id="chartIncomeLevel"></canvas>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 정책 제공 기관</h1>
+        <div>
+          <canvas id="chartProvider"></canvas>
+        </div>
+      </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-      const ctx = document.getElementById("myChart");
+      document.addEventListener("DOMContentLoaded", () => {
+        categoryChartLoad();
+        regionChartLoad();
+        educationChartLoad();
+        jobChartLoad();
+        methodChartLoad();
+        SpecificTypeChartLoad();
+        SpecificTypeChartLoad();
+        IncomeLevelChartLoad();
+        ProviderChartLoad();
+      });
 
-      new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: ["Red", "Blue", "Yellow", "Green", "Purple", "Orange"],
-          datasets: [
-            {
-              label: "# of Votes",
-              data: [12, 19, 3, 5, 2, 3],
-              borderWidth: 1,
-            },
-          ],
-        },
-        options: {
-          scales: {
-            y: {
-              beginAtZero: true,
+      // 데이터 불러오기
+      function dataLoad(apiUrl, param, callback) {
+        fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(param),
+        })
+          .then((response) => response.json())
+          .then((response) => {
+            console.log(response);
+            callback(response.data);
+          })
+          .catch((error) => console.error("dataLoad catch ", apiUrl, error));
+      }
+
+      // 차트 그리기
+      function drawChart(id, data, label) {
+        const obj = document.getElementById(id);
+
+        new Chart(obj, {
+          type: "bar",
+          data: {
+            labels: data.map((item) => item._id),
+            datasets: [
+              {
+                label: label,
+                data: data.map((item) => item.count),
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true,
+              },
             },
           },
-        },
-      });
+        });
+      }
+
+      // 서브 카테고리 차트 로드
+      function categoryChartLoad(data) {
+        const api_url = "api/chart/getArrayData";
+        const param = {
+          collection_name: "policy_vectors",
+          field_name: "metadata.sub_categories",
+        };
+
+        dataLoad(api_url, param, (data) => {
+          console.log("categoryChartLoad data:", data);
+          drawChart("chartCategory", data, "policy_vectors.sub_categories");
+        });
+      }
+
+      // 지역 차트 로드
+      function regionChartLoad(data) {
+        const api_url = "api/chart/getArrayData";
+        const param = {
+          collection_name: "policies",
+          field_name: "region",
+        };
+
+        dataLoad(api_url, param, (data) => {
+          console.log("regionChartLoad data:", data);
+          drawChart("chartRegion", data, "policies.region");
+        });
+      }
+
+      // 학력 차트 로드
+      function educationChartLoad(data) {
+        const api_url = "api/chart/getArrayData";
+        const param = {
+          collection_name: "policies",
+          field_name: "school_type",
+        };
+
+        dataLoad(api_url, param, (data) => {
+          console.log("educationChartLoad data:", data);
+          drawChart("chartEducation", data, "policies.school_type");
+        });
+      }
+
+      // 취업 요건 차트 로드
+      function jobChartLoad(data) {
+        const api_url = "api/chart/getArrayData";
+        const param = {
+          collection_name: "policies",
+          field_name: "job_type",
+        };
+
+        dataLoad(api_url, param, (data) => {
+          console.log("jobChartLoad data:", data);
+          drawChart("chartJob", data, "policies.job_type");
+        });
+      }
+
+      // 정책 제공 방법 차트 로드
+      function methodChartLoad(data) {
+        const api_url = "api/chart/getArrayData";
+        const param = {
+          collection_name: "policies",
+          field_name: "policy_provision_method",
+        };
+
+        dataLoad(api_url, param, (data) => {
+          console.log("methodChartLoad data:", data);
+          drawChart("chartMethod", data, "policies.policy_provision_method");
+        });
+      }
+
+      // 정책 특화요건 차트 로드
+      function SpecificTypeChartLoad(data) {
+        const api_url = "api/chart/getArrayData";
+        const param = {
+          collection_name: "policies",
+          field_name: "policy_specific_type",
+        };
+
+        dataLoad(api_url, param, (data) => {
+          console.log("SpecificTypeChartLoad data:", data);
+          drawChart("chartSpecificType", data, "policies.policy_specific_type");
+        });
+      }
+
+      // 소득수준 차트 로드
+      function IncomeLevelChartLoad(data) {
+        const api_url = "api/chart/getData";
+        const param = {
+          collection_name: "policy_vectors",
+          field_name: "metadata.income_level.max",
+        };
+
+        dataLoad(api_url, param, (data) => {
+          console.log("IncomeLevelChartLoad data:", data);
+          drawChart(
+            "chartIncomeLevel",
+            data,
+            "policy_vectors.metadata.income_level.max",
+          );
+        });
+      }
+
+      // 정책 제공 기관 차트 로드
+      function ProviderChartLoad(data) {
+        const api_url = "api/chart/getData";
+        const param = {
+          collection_name: "policies",
+          field_name: "provider",
+        };
+
+        dataLoad(api_url, param, (data) => {
+          console.log("ProviderChartLoad data:", data);
+          drawChart("chartProvider", data, "policies.provider");
+        });
+      }
     </script>
   </body>
 </html>

@@ -139,3 +139,63 @@ def set_keyword_data(request):
         print(f"[set_keyword_data] exception {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
     
+@csrf_exempt
+def get_data_for_chart(request):
+    try:
+        body_unicode = request.body.decode('utf-8')
+        body_data = json.loads(body_unicode)
+        collection_name = body_data.get('collection_name')
+        field_name = body_data.get('field_name')
+
+        db = getMongoDbClient()
+        collection = db[collection_name]
+
+        result = collection.aggregate([
+            {
+                "$group": {
+                    "_id": f"${field_name}",
+                    "count": { "$sum": 1 }
+                    }
+            },
+            {
+                "$sort": { "count": -1 }
+            }
+        ])
+        json_data = json.loads(json_util.dumps(list(result)))
+        return JsonResponse({"status": "success", "data": json_data}, json_dumps_params={'ensure_ascii': False}, safe=False)
+    except Exception as e:
+        print(f"[get_data_for_chart] exception {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    
+@csrf_exempt
+def get_arr_data_for_chart(request):
+    try:
+        body_unicode = request.body.decode('utf-8')
+        body_data = json.loads(body_unicode)
+        collection_name = body_data.get('collection_name')
+        field_name = body_data.get('field_name')
+
+        db = getMongoDbClient()
+        collection = db[collection_name]
+
+        result = collection.aggregate([
+            {
+                "$unwind": f"${field_name}"
+            },
+            {
+                "$group": {
+                "_id": f"${field_name}",
+                "count": { "$sum": 1 }
+                }
+            },
+            {
+                "$sort": { "count": -1 }
+            }
+        ])
+        
+        json_data = json.loads(json_util.dumps(list(result)))
+        return JsonResponse({"status": "success", "data": json_data}, json_dumps_params={'ensure_ascii': False}, safe=False)
+    except Exception as e:
+        print(f"[get_data_for_chart] exception {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    
