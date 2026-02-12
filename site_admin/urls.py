@@ -10,4 +10,5 @@ urlpatterns = [
     path("api/uploadFile", views.upload_file, name="uploadFile"),
     path("api/getKeywordData", views.get_keyword_data, name="getKeywordData"),
     path("api/setKeywordData", views.set_keyword_data, name="setKeywordData"),
+    path("chart", views.chart, name="chart"),
 ]

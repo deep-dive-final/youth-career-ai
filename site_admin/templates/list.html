@@ -70,7 +70,7 @@
                 divItem.className = "p-2 border-b border-pink-300";
 
                 var divDetail = document.createElement("div");
-                divDetail.innerHTML = item.original_text.replace(/\r?\n/g, '<br>');
+                divDetail.innerHTML = item.content_chunk_v2.replace(/\r?\n/g, '<br>');
                 divDetail.className = "text-gray-500";
                 divDetail.style.fontSize = "13px";
 
@@ -78,7 +78,7 @@
                 txtRegion.type = "text";
                 txtRegion.style.width = "400px";
                 txtRegion.className = "m-1 border border-gray-300";
-                txtRegion.value = item.region;
+                txtRegion.value = item.metadata.region;
 
                 var txtId = document.createElement("input");
                 txtId.type = "text";
@@ -90,21 +90,15 @@
                 txtEducation.type = "text";
                 txtEducation.style.width = "400px";
                 txtEducation.className = "m-1 border border-gray-300";
-                txtEducation.value = item.education;
+                txtEducation.value = item.metadata.education_level;
                 txtEducation.placeholder = "학력";
-
-                if (!item.education || item.education.length === 0)
-                    txtEducation.value = "학력무관";
 
                 var txtIncomeLevel = document.createElement("input");
                 txtIncomeLevel.type = "text";
                 txtIncomeLevel.style.width = "400px";
                 txtIncomeLevel.className = "m-1 border border-gray-300";
-                txtIncomeLevel.value = item.income_level;
+                txtIncomeLevel.value = item.metadata.income_level?.min + "," + item.metadata.income_level?.max;
                 txtIncomeLevel.placeholder = "소득수준";
-
-                if (!item.income_level || item.income_level.length === 0)
-                    txtIncomeLevel.value = "-1,999";
 
                 var btnSave = document.createElement("input");
                 btnSave.type = "button";
@@ -112,7 +106,7 @@
                 btnSave.className = "m-1 border border-gray-300";
                 btnSave.value = " 저장 ";
                 btnSave.onclick = function() {
-                    setKeywordData(item._id.$oid, txtRegion.value, txtEducation.value, txtIncomeLevel.value);
+                    setKeywordData(item._id.$oid, txtRegion.value, txtIncomeLevel.value);
                 }
 
                 divItem.appendChild(divDetail);
@@ -126,7 +120,7 @@
         }
 
         // 키워드 데이터 저장
-        function setKeywordData (id, region, education, income_level) {
+        function setKeywordData (id, region, income_level) {
             fetch("/site_admin/api/setKeywordData", {
             method: "POST",
             headers: {
@@ -135,7 +129,6 @@
             body: JSON.stringify({
                 id: id,
                 region: region,
-                education: education,
                 income_level: income_level
             }),
           })

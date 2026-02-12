@@ -15,6 +15,9 @@ def data(request):
 def data_list(request):
     return render(request, "list.html", {})
 
+def chart(request):
+    return render(request, "chart.html", {})
+
 @csrf_exempt
 def importData(request):
     try:
@@ -84,11 +87,20 @@ def get_keyword_data(request):
         page_size = request.GET.get('size')
         search_text = request.GET.get('search_text')
 
+        find_text = {"metadata.policy_name": {"$regex": search_text, "$options": "i"}} if search_text else {}
+        find_field = {"policy_id": 1, 
+                      "metadata.policy_name": 1, 
+                      "content_chunk_v2": 1, 
+                      "metadata.region": 1, 
+                      "metadata.education_level": 1, 
+                      "metadata.income_level": 1
+                      }
+
         db = getMongoDbClient()
-        keywords_collection = db["search_keywords_temp"]
+        policy_vectors = db["policy_vectors"]
 
         skip_count = (int(page_num) - 1) * int(page_size)
-        keyword_result = keywords_collection.find().sort("_id", 1).skip(skip_count).limit(int(page_size))
+        keyword_result = policy_vectors.find(find_text, find_field).sort("_id", 1).skip(skip_count).limit(int(page_size))
         json_data = json.loads(json_util.dumps(list(keyword_result)))
 
         return JsonResponse({"status": "success", "data": json_data}, json_dumps_params={'ensure_ascii': False}, safe=False)
@@ -102,20 +114,20 @@ def set_keyword_data(request):
         body_data = json.loads(body_unicode)
         id = body_data.get('id')
         region = body_data.get('region')
-        education = body_data.get('education')
         income_level = body_data.get('income_level')
 
         db = getMongoDbClient()
-        keywords_collection = db["search_keywords_temp"]
+        policy_vectors = db["policy_vectors"]
 
-        result = keywords_collection.update_one(
+        result = policy_vectors.update_one(
             {"_id": ObjectId(id)},
             {
                 "$set": {
-                    "region": region.split(","),
-                    "education": education.split(","),
-                    "income.min": int(income_level.split(",")[0]) if income_level else -1,
-                    "income.max": int(income_level.split(",")[1]) if len(income_level.split(",")) > 1 else -1,
+                    "metadata.region": region.split(","),
+                    "metadata.income_level": {
+                        "min": int(income_level.split(",")[0]),
+                        "max": int(income_level.split(",")[1])
+                    }
                 }
             }
         )
