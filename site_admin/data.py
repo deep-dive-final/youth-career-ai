@@ -102,7 +102,6 @@ def get_embeddings(api_list):
     original_text_list = [f"{item.get('plcyNm', '')} \n\
 {item.get('plcyExplnCn', '')} \n\
 {item.get('plcySprtCn', '')} \n\
-{item.get('ptcpPrpTrgtCn', '')} \n\
 {item.get('addAplyQlfcCndCn', '')} ".strip() for item in api_list]
     
     embedding_e5 = get_Embedding_e5(original_text_list, "passage")
