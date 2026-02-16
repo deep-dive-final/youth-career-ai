@@ -30,6 +30,18 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
 
+# 배포를 위해 파일이 모일 위치 정의
+# 웹 브라우저에서 접근할 때 사용하는 URL 경로
+STATIC_URL = 'static/'
+
+# 개발 중에 참고할 정적 파일들이 있는 경로 (추가 폴더가 있을 경우)
+STATICFILES_DIRS = [
+    BASE_DIR / "static"
+]
+
+# collectstatic 명령 실행 시 파일이 복사되는 절대 경로 (운영 서버용)
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -39,7 +51,7 @@ SECRET_KEY = 'django-insecure-_v6n*burtg)7u-2mj7mt6!_406p29!g)e92#oy!!io^i@@5qd^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -67,7 +79,11 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
+
+# 배포를 위한 압축 및 캐싱 설정
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 ROOT_URLCONF = 'config.urls'
 

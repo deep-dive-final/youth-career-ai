@@ -1,6 +1,11 @@
+Django
+# 운영용 WSGI 서버 (Dockerfile에서 사용)
+gunicorn
 pymongo
 python-dotenv
-sentence_transformers
+#sentence_transformers
 google-generativeai
 boto3
 google-genai
+whitenoise
+numpy
