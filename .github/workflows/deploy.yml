@@ -53,13 +53,13 @@ jobs:
 
       - name: Download task definition
         run: |
-          aws ecs describe-task-definition --task-definition ${{secrets.TASK_DEF_NAME}} --query taskDefinition > ecs/task-definition.json
+          aws ecs describe-task-definition --task-definition ${{secrets.TASK_DEF_NAME}} --query taskDefinition > task-definition.json
 
       - name: Render Amazon ECS task definition
         id: render-task
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: ecs/task-definition.json
+          task-definition: task-definition.json
           container-name: ${{secrets.AWS_CONTAINER_NAME}}
           image: ${{env.AWS_ACCOUNT_ID}}.dkr.ecr.${{env.AWS_REGION}}.amazonaws.com/${{env.ECR_REPOSITORY}}:${{github.sha}}
 
