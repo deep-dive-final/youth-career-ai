@@ -1,0 +1,245 @@
+{% load static %}
+<html>
+  <head>
+    <title>Data Page</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+  <body>
+    <div id="container">
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h1 class="pb-3">✔ 데이터 불러오기</h1>
+        <div>
+          <div>
+            페이지 번호:
+            <input
+              id="txt-page-num-start"
+              type="text"
+              style="width: 40px"
+              class="border border-gray-300 px-1 py-0.5"
+            />
+            ~
+            <input
+              id="txt-page-num-end"
+              type="text"
+              style="width: 40px"
+              class="border border-gray-300 px-1 py-0.5"
+            /><br />
+          </div>
+          <div class="pt-2">
+            페이지 사이즈:
+            <input
+              id="txt-page-size"
+              type="text"
+              style="width: 40px"
+              class="border border-gray-300 px-1 py-0.5"
+            />
+            <input
+              id="btn-get-data"
+              type="button"
+              class="px-3 py-1 border border-gray-300 bg-gray-50 text-gray-700 text-sm rounded-md hover:bg-gray-100"
+              value="데이터 불러오기"
+            />
+          </div>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h3 class="pb-3">✔ 데이터 검색 테스트</h3>
+        <div class="pb-3">
+          <input
+            type="radio"
+            id="gemini"
+            name="search-mode"
+            checked="checked"
+          />
+          <label style="cursor: pointer" for="radio-gemini"
+            >gemini-embedding-001</label
+          >
+          <!-- <input type="radio" id="e5" name="search-mode" />
+          <label style="cursor: pointer;" for="radio-e5">multilingual-e5-large</label> -->
+        </div>
+        <div>
+          <input
+            id="txt-search"
+            type="text"
+            class="border border-gray-300 px-1 py-0.5"
+            style="width: 90%"
+            placeholder="검색어를 입력하세요."
+          />
+          <div id="divSearchContent"></div>
+        </div>
+      </div>
+      <div class="p-5 bg-white border-b border-gray-300">
+        <h3 class="pb-3">✔ 파일 업로드 테스트</h3>
+        <div class="pb-3">
+          <input
+            type="file"
+            id="file_input"
+            class="hidden"
+            onchange="uploadFile()"
+          />
+          <label
+            for="file_input"
+            class="px-4 py-2 bg-indigo-600 text-white rounded cursor-pointer hover:bg-indigo-700"
+          >
+            파일 업로드
+          </label>
+          <div id="div_update_status" class="mt-5"></div>
+        </div>
+      </div>
+
+      <script>
+        var last_page_num = 0;
+
+        document.querySelector("#btn-get-data").onclick = function () {
+          if (
+            !confirm(
+              "데이터를 불러오시겠습니까? 기존 데이터에서 업데이트해야되는데, 지금은 중복으로 insert 됩니다.",
+            )
+          ) {
+            return;
+          }
+
+          last_page_num = parseInt(
+            document.querySelector("#txt-page-num-end").value.trim(),
+          );
+          var page_num_start = document
+            .querySelector("#txt-page-num-start")
+            .value.trim();
+          var page_size = document.querySelector("#txt-page-size").value.trim();
+
+          if (!page_num_start || !page_size) {
+            alert("페이지 번호와 페이지 사이즈를 입력하세요.");
+            return;
+          }
+
+          fetch_data(page_num_start, page_size);
+        };
+
+        function fetch_data(num, size) {
+          fetch(`/site_admin/api/importData?num=${num}&size=${size}`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              console.log(data);
+
+              next_num = parseInt(num) + 1;
+              if (next_num <= last_page_num) {
+                fetch_data(next_num, size);
+              } else {
+                alert("데이터 불러오기 완료");
+              }
+            })
+            .catch((error) => {
+              console.error("Error fetching data:", error);
+            });
+        }
+
+        document.querySelector("#txt-search").onkeydown = function (event) {
+          if (event.key !== "Enter") return;
+
+          var search_type = document.querySelector(
+            "input[name='search-mode']:checked",
+          ).id;
+          fetch(
+            `/site_admin/api/getSearchData?search_text=${event.target.value}&search_type=${search_type}`,
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            },
+          )
+            .then((response) => response.json())
+            .then((result) => {
+              console.log("gemini result", result);
+              gemini_callback(result.data);
+            })
+            .catch((error) => {
+              console.error("Error fetching expense data:", error);
+            });
+        };
+
+        function gemini_callback(data) {
+          var divContent = document.querySelector("#divSearchContent");
+          divContent.innerHTML = "";
+
+          data.forEach(function (item) {
+            metadata = item.metadata;
+            var divItem = document.createElement("div");
+            divItem.className = "mt-3";
+
+            var spanCategory = document.createElement("span");
+            spanCategory.className = "text-xs text-blue-500";
+            spanCategory.textContent = `${metadata.category} > ${metadata.sub_category}`;
+
+            var spanScore = document.createElement("span");
+            spanScore.className = "text-xs text-gray-500 pl-3";
+            spanScore.textContent = `${item.score.toFixed(3)}`;
+
+            var divTitle = document.createElement("div");
+            divTitle.className = "font-bold";
+            divTitle.textContent = `${metadata.policy_name}`;
+
+            var divDetail = document.createElement("div");
+            divDetail.innerHTML = item.content_chunk_v2.replace(
+              /\r?\n/g,
+              "<br>",
+            );
+            divDetail.className = "text-sm text-gray-500";
+
+            divItem.appendChild(spanCategory);
+            divItem.appendChild(spanScore);
+            divItem.appendChild(divTitle);
+            divItem.appendChild(divDetail);
+
+            divContent.appendChild(divItem);
+          });
+        }
+
+        // 파일 업로드
+        async function uploadFile() {
+          const fileInput = document.getElementById("file_input");
+          const status = document.getElementById("div_update_status");
+
+          if (fileInput.files.length === 0) {
+            alert("파일을 선택해주세요!");
+            return;
+          }
+
+          const formData = new FormData();
+          formData.append("document_file", fileInput.files[0]); // 'myfile'은 view에서 받을 이름
+
+          try {
+            status.innerText = "업로드 중...";
+
+            const response = await fetch("/site_admin/api/uploadFile", {
+              // Django의 URL
+              method: "POST",
+              body: formData,
+              headers: {
+                // CSRF 토큰은 Django 보안을 위해 필수입니다.
+                "X-CSRFToken": getCookie("csrftoken"),
+              },
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              status.innerText =
+                "업로드 성공! URL: " + result.data.uploaded_url;
+            } else {
+              status.innerText = "업로드 실패 ㅜㅜ";
+            }
+          } catch (error) {
+            console.error("[uploadFile] catch", error);
+          }
+        }
+      </script>
+    </div>
+    <script src="{% static 'js/common.js' %}"></script>
+  </body>
+</html>

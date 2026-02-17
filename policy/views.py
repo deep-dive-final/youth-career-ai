@@ -1,6 +1,11 @@
 from django.shortcuts import render
-
-# Create your views here.
+from utils.db import getMongoDbClient
 
 def policy(request):
-    return render(request, "policy-detail.html", {})
+    policy_id = request.GET.get('id')
+    
+    db = getMongoDbClient()
+    
+    policy_data = db.policies.find_one({"policy_id": policy_id})
+    
+    return render(request, "policy-detail.html", {"policy": policy_data})
