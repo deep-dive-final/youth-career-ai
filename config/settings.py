@@ -42,6 +42,14 @@ STATICFILES_DIRS = [
 # collectstatic 명령 실행 시 파일이 복사되는 절대 경로 (운영 서버용)
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# ALB가 보낸 헤더를 통해 HTTPS 여부를 판단하도록 설정
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# 모든 접속을 HTTPS로 강제 (ALB 리다이렉트를 썼다면 필수는 아니지만 보안상 권장)
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -49,7 +57,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 SECRET_KEY = 'django-insecure-_v6n*burtg)7u-2mj7mt6!_406p29!g)e92#oy!!io^i@@5qd^'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*']
 

@@ -1,0 +1,30 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "youth-career-ai-container",
+      "image": "REPLACE_IMAGE",
+      "portMappings": [
+        {
+          "name": "youth-career-ai-container-8000-tcp",
+          "containerPort": 8000,
+          "hostPort": 8000,
+          "protocol": "tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "essential": true
+    }
+  ],
+  "family": "youth-career-ai-task",
+  "taskRoleArn": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/EcsTaskRole",
+  "executionRoleArn": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "volumes": [],
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  }
+}
