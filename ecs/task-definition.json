@@ -16,8 +16,6 @@
     }
   ],
   "family": "youth-career-ai-task",
-  "taskRoleArn": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/EcsTaskRole",
-  "executionRoleArn": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ecsTaskExecutionRole",
   "networkMode": "awsvpc",
   "volumes": [],
   "requiresCompatibilities": ["FARGATE"],
