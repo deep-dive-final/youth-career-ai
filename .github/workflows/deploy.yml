@@ -16,6 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Make Env
+        run: |
+          touch ./.env
+          echo "${{secrets.ENV_FILE}}" > ./.env
+
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -46,18 +51,22 @@ jobs:
             ${{env.AWS_ACCOUNT_ID}}.dkr.ecr.${{env.AWS_REGION}}.amazonaws.com/${{env.ECR_REPOSITORY}}:${{github.sha}}
             ${{env.AWS_ACCOUNT_ID}}.dkr.ecr.${{env.AWS_REGION}}.amazonaws.com/${{env.ECR_REPOSITORY}}:latest
 
+      - name: Download task definition
+        run: |
+          aws ecs describe-task-definition --task-definition ${{secrets.TASK_DEF_NAME}} --query taskDefinition > ecs/task-definition.json
+
       - name: Render Amazon ECS task definition
         id: render-task
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: ecs/task-definition.json
-          container-name: youth-career-ai-container
+          container-name: ${{secrets.AWS_CONTAINER_NAME}}
           image: ${{env.AWS_ACCOUNT_ID}}.dkr.ecr.${{env.AWS_REGION}}.amazonaws.com/${{env.ECR_REPOSITORY}}:${{github.sha}}
 
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{steps.render-task.outputs.task-definition}}
-          service: youth-career-ai-task-service-sltee0wj
-          cluster: youth-career-ai
+          service: ${{secrets.AWS_SERVICE_NAME}}
+          cluster: ${{secrets.AWS_CLUSTER_NAME}}
           wait-for-service-stability: true
