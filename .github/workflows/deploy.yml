@@ -53,8 +53,6 @@ jobs:
           task-definition: ecs/task-definition.json
           container-name: youth-career-ai-container
           image: ${{env.AWS_ACCOUNT_ID}}.dkr.ecr.${{env.AWS_REGION}}.amazonaws.com/${{env.ECR_REPOSITORY}}:${{github.sha}}
-          environment-variables: |
-            AWS_ACCOUNT_ID=${{env.AWS_ACCOUNT_ID}}
 
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
