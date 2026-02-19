@@ -9,3 +9,4 @@ boto3
 google-genai
 whitenoise
 numpy
+pyjwt
