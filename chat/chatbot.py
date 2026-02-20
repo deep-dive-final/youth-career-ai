@@ -1,112 +1,128 @@
 import os
-import numpy as np
+import asyncio
+import time
+from openai import AsyncOpenAI
 from google import genai
 from google.genai import types
-from utils.db import getMongoDbClient  
+from utils.db import getMongoDbClient
 
 from dotenv import load_dotenv
 load_dotenv()
 
-# 1. 초기 설정
-API_KEY = os.getenv('GEMINI_API_KEY')
-client = genai.Client(api_key=API_KEY)
+openai_client = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+gemini_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 
-def get_query_vector(text):
-    """3072차원 임베딩 추출 (gemini-embedding-001)"""
-    res = client.models.embed_content(
+async def get_query_vector_async(text):
+    loop = asyncio.get_event_loop()
+    res = await loop.run_in_executor(None, lambda: gemini_client.models.embed_content(
         model="gemini-embedding-001",
         contents=text,
         config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY")
-    )
+    ))
     return res.embeddings[0].values
 
-def get_AI_response(messages):
-    """
-    views.py에서 전달받은 messages(대화 내역)를 바탕으로 RAG 답변 생성
-    """
-    print("[get_AI_response] start RAG process...")
-
-    # 1. 마지막 질문 추출
+async def get_AI_response(messages):
+    overall_start = time.time()
     user_query = messages[-1]['content']
     
-    # 2. 질문 벡터화
-    query_vector = get_query_vector(user_query)
-    
-    # 3. MongoDB 벡터 검색 
+    # --- [수정] 1. GPT-4o를 이용한 다중 지역명 추출 ---
+    try:
+        region_extract_prompt = [
+        {"role": "system", "content": """
+        사용자의 질문에서 모든 지역명을 추출하세요. 
+        특히, 사용자가 '시/군/구' 단위만 언급했다면 해당 지역이 속한 '도'나 '특별시/광역시'를 반드시 포함하여 콤마(,)로 구분해 답변하세요.
+        
+        예시:
+        - '안산' -> '경기, 안산'
+        - '강남' -> '서울, 강남'
+        - '해운대' -> '부산, 해운대'
+        - '창원' -> '경남, 창원'
+        
+        지역 관련 키워드가 전혀 없으면 '전국'이라고만 답변하세요.
+        """},
+        {"role": "user", "content": user_query}
+    ]
+        
+        region_res = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=region_extract_prompt,
+            max_tokens=20
+        )
+        
+        # 추출된 결과를 리스트로 변환 (예: "경기, 안산" -> ["경기", "안산"])
+        raw_regions = region_res.choices[0].message.content.strip().split(',')
+        target_regions = [r.strip().replace("시", "").replace("도", "") for r in raw_regions if "전국" not in r]
+    except:
+        target_regions = []
+
+    # --- 2. RAG 데이터 검색 (기존과 동일) ---
+    query_vector = await get_query_vector_async(user_query)
     db = getMongoDbClient()
     vector_results = list(db['policy_vectors'].aggregate([
-        {
-            "$vectorSearch": {
-                "index": "vector_index_v2",
-                "path": "embedding_gemini_v2",
-                "queryVector": query_vector,
-                "numCandidates": 100,
-                "limit": 10
-            }
-        },
-        {
-            "$lookup": {
-                "from": "policies",
-                "localField": "policy_id",
-                "foreignField": "_id",
-                "as": "policy_detail"
-            }
-        },
-        { "$unwind": "$policy_detail" }
+        {"$vectorSearch": {
+            "index": "vector_index_v2", 
+            "path": "embedding_gemini_v2", 
+            "queryVector": query_vector, 
+            "numCandidates": 100, 
+            "limit": 50 # 다중 필터링을 위해 리미트를 조금 늘렸습니다.
+        }}
     ]))
 
-    # 4. 검색된 정책 컨텍스트 구성
-    candidate_context = ""
-    for i, doc in enumerate(vector_results):
-        detail = doc.get('policy_detail', {})
-        agency = detail.get('supervising_agency', '정보 없음')
-        title = detail.get('title', '제목 없음')
-        content = detail.get('content_chunk_v2', str(detail)[:500])
-        candidate_context += f"[{i}] 기관: {agency} | 제목: {title} | 내용: {content}\n"
+    # --- [수정] 3. 다중 지역 기반 필터링 및 매칭 ---
+    region_specific, nationwide = [], []
+    seen_titles = set()
 
-    # 5. 이전 대화 요약 (최근 3개)
-    history_text = ""
-    for msg in messages[:-1][-3:]:
-        role = "사용자" if msg['role'] == 'user' else "AI"
-        history_text += f"{role}: {msg['content']}\n\n"
+    for doc in vector_results:
+        meta = doc.get('metadata', {})
+        title = meta.get('policy_name', '').strip()
+        region_val = meta.get('region', ['전국'])[0]
+        
+        if title in seen_titles: continue
+        
+        item = {
+            "title": title, 
+            "region": region_val, 
+            "content": doc.get('content_chunk_v2') or meta.get('support_content')
+        }
 
-    # 6. 프롬프트 적용
-    prompt = f"""
-    당신은 대한민국 청년 정책 전문가입니다. 
-    불필요한 인사말이나 서론("의도를 파악했습니다" 등)은 생략하고 바로 본론만 답변하세요.
+        # [변경점] 리스트 내의 지역명 중 하나라도 포함되어 있는지 확인
+        is_match = any(reg in region_val or reg in title for reg in target_regions)
 
-    [이전 대화]:
-    {history_text if history_text else "이전 대화 없음"}
+        if target_regions and is_match:
+            region_specific.append(item)
+        elif any(k in region_val for k in ["전국", "중앙", "국가"]):
+            nationwide.append(item)
+        
+        seen_titles.add(title)
 
-    [새로 검색된 정책 후보]:
-    {candidate_context}
+    # 우선순위: 특정 지역 정책 -> 전국구 정책 순으로 합쳐서 상위 5개
+    top_5 = (region_specific + nationwide)[:5]
+    # 로그 출력용 상태값
+    context_status = ", ".join(target_regions) if region_specific else "전국"
 
-    [답변 가이드라인]:
-    **CASE A: 새로운 정책 추천을 원하는 경우 (예: "취업 정책 알려줘", "안산 정책 있어?")**
-    1. [새로 검색된 정책 후보] 중 가장 적합한 것을 2개 이내로 선별하세요.
-    2. 지역(안산 등)이 맞으면 [지역 특화], 국가 사업이면 [🚩국가 지원] 꼬리표를 붙이세요.
-    3. 아래 포맷을 유지하세요:
-       ### [정책명]
-       * 👥 **대상**: 핵심만 1줄
-       * 🎁 **혜택**: 핵심만 1줄
-       * 📅 **신청**: 간략히
-       ---
+    # --- 4. GPT-4o 최종 답변 생성 ---
+    api_messages = [
+        {
+            "role": "system", 
+            "content": f"당신은 {context_status} 정책 요약 전문가입니다. 제공된 데이터를 기반으로 답변하세요."
+        },
+        {
+            "role": "user", 
+            "content": f"[참고 데이터]\n{top_5}\n\n질문: {user_query}\n\n위 데이터 중 가장 적합한 2개를 골라 다음 형식으로 요약하세요.\n### [정책명]\n* 👤 대상: 조건\n* 🎁 혜택: 상세내용\n* 📅 신청: 방법"
+        }
+    ]
 
-    **CASE B: 이전 답변 내용에 대해 구체적인 질문을 하는 경우 (예: "2번째 거 자세히", "신청 서류 뭐야?")**
-    1. 새로 검색된 후보 리스트보다 [이전 대화]에 언급된 특정 정책의 내용을 상세히 설명하는 데 집중하세요.
-    2. "2번째 정책"과 같이 숫자로 지칭하면, 이전 대화 리스트의 순서를 확인하여 정확한 정보를 전달하세요.
-    3. '신청 프로세스', '필요 서류', '주의사항' 등을 친절하게 보충 설명하세요.
-    4. 새로운 추천 리스트를 다시 나열하지 마세요.
-
-    **공통 주의사항**:
-    - 타 지역(거주지와 무관한 곳) 정책은 절대 추천하지 마세요.
-    - 답변은 최대한 간결하고 가독성 있게 작성하세요.
-    """
-
-    # 7. Gemini 3 Flash 답변 생성
-    response = client.models.generate_content(
-        model="gemini-3-flash-preview", 
-        contents=prompt
-    )
+    gen_start = time.time()
+    try:
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=api_messages,
+            max_completion_tokens=2000,
+            temperature=0.7
+        )
+        ai_answer = response.choices[0].message.content
+    except Exception as e:
+        ai_answer = f"오류 발생: {str(e)}"
     
-    return response.text
+    print(f"\n📊 [분석] 추출지역: {context_status} | 전체시간: {time.time()-overall_start:.2f}s")
+    return ai_answer
