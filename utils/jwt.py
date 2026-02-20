@@ -1,0 +1,92 @@
+# PyJWT를 이용한 JWT 발급 / 검증 유틸리티
+import uuid
+from datetime import datetime, timezone, timedelta
+
+import jwt
+from django.conf import settings
+
+SECRET = settings.SECRET_KEY
+ALGORITHM = 'HS256'
+ACCESS_EXPIRE  = timedelta(minutes=5)
+REFRESH_EXPIRE = timedelta(days=7)
+
+# 토큰 생성
+def _build_payload(user, token_type: str, lifetime: timedelta) -> dict:
+    now = datetime.now(tz=timezone.utc)
+    return {
+        'sub': str(user["id"]), # subject: 사용자 PK
+        'email': user["email"],
+        'type': token_type, # 'access' | 'refresh'
+        'jti': str(uuid.uuid4()), # JWT ID (블랙리스트용)
+        'iat': now, # issued at
+        'exp': now + lifetime, # expiry
+    }
+
+def generate_access_token(user) -> str:
+    payload = _build_payload(user, 'access', ACCESS_EXPIRE)
+    return jwt.encode(payload, SECRET, algorithm=ALGORITHM)
+
+def generate_refresh_token(user) -> str:
+    payload = _build_payload(user, 'refresh', REFRESH_EXPIRE)
+    return jwt.encode(payload, SECRET, algorithm=ALGORITHM)
+
+def generate_token_pair(user) -> dict:
+    """Access + Refresh 토큰 쌍 반환"""
+    return {
+        'access':  generate_access_token(user),
+        'refresh': generate_refresh_token(user),
+    }
+
+# 토큰 검증
+class TokenError(Exception):
+    """JWT 검증 실패 시 발생"""
+    pass
+
+def decode_token(token: str, expected_type: str | None = None) -> dict:
+    """
+    토큰 디코딩 및 검증.
+    실패 시 TokenError 발생.
+    """
+    try:
+        payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise TokenError('토큰이 만료되었습니다.')
+    except jwt.InvalidTokenError as e:
+        raise TokenError(f'유효하지 않은 토큰입니다: {e}')
+
+    if expected_type and payload.get('type') != expected_type:
+        raise TokenError(f"'{expected_type}' 타입 토큰이 필요합니다.")
+
+    return payload
+
+def decode_access_token(token: str) -> dict:
+    return decode_token(token, expected_type='access')
+
+def decode_refresh_token(token: str) -> dict:
+    payload = decode_token(token, expected_type='refresh')
+
+    # 블랙리스트 확인 (로그아웃된 토큰)
+    jti = payload.get('jti')
+    #if jti and InvalidatedToken.objects.filter(jti=jti).exists():
+    #    raise TokenError('이미 무효화된 토큰입니다.')
+
+    return payload
+
+# 블랙리스트
+def invalidate_refresh_token(token: str) -> None:
+    """
+    Refresh Token을 블랙리스트에 등록 (로그아웃).
+    이미 만료/무효인 토큰도 예외 없이 처리.
+    """
+    try:
+        payload = decode_token(token, expected_type='refresh')
+    except TokenError:
+        return  # 이미 무효 → 무시
+
+    jti        = payload['jti']
+    expired_at = datetime.fromtimestamp(payload['exp'], tz=timezone.utc)
+
+    #InvalidatedToken.objects.get_or_create(
+    #    jti=jti,
+    #    defaults={'expired_at': expired_at},
+    #)

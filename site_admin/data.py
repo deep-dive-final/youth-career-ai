@@ -5,7 +5,7 @@ from django.conf import settings
 from utils.db import getMongoDbClient
 from datetime import datetime
 from bson import ObjectId
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer
 # from openai import OpenAI
 import google.generativeai as genai
 
@@ -42,29 +42,29 @@ def fetch_api_data(url, param):
     return response.json()
 
 # 전역 모델 캐시 변수 (이렇게 하면 시간이 적게 걸리려나..)
-_model = None
-def get_model(model_name):
-    global _model
-    if _model is None:
-        print("모델을 처음 로드합니다")
-        _model = SentenceTransformer(model_name)
-    return _model
+# _model = None
+# def get_model(model_name):
+#     global _model
+#     if _model is None:
+#         print("모델을 처음 로드합니다")
+#         _model = SentenceTransformer(model_name)
+#     return _model
 
 # E5 모델 임베딩 생성 함수
-def get_Embedding_e5 (original_text_list, task_type="passage"):
-    print("[get_Embedding_e5] start ")
+# def get_Embedding_e5 (original_text_list, task_type="passage"):
+#     print("[get_Embedding_e5] start ")
 
-    # E5 모델의 특성에 맞게 접두사 추가: 'passage' (저장용) 또는 'query' (검색용)
-    prefixed_texts = [f"{task_type}: {text}" for text in original_text_list]
+#     # E5 모델의 특성에 맞게 접두사 추가: 'passage' (저장용) 또는 'query' (검색용)
+#     prefixed_texts = [f"{task_type}: {text}" for text in original_text_list]
     
-    # 모델 로드
-    model_name = 'intfloat/multilingual-e5-large'
-    model = get_model(model_name)
+#     # 모델 로드
+#     model_name = 'intfloat/multilingual-e5-large'
+#     model = get_model(model_name)
 
-    # 임베딩 생성 (리스트 형태의 numpy 배열 반환)
-    embedding_e5 = model.encode(prefixed_texts, normalize_embeddings=True, batch_size=64)
+#     # 임베딩 생성 (리스트 형태의 numpy 배열 반환)
+#     embedding_e5 = model.encode(prefixed_texts, normalize_embeddings=True, batch_size=64)
 
-    return embedding_e5
+#     return embedding_e5
 
 # OpenAI 임베딩 생성 함수
 # def get_Embedding_openai(original_text_list):
@@ -102,10 +102,10 @@ def get_embeddings(api_list):
     original_text_list = [f"{item.get('plcyNm', '')} \n\
 {item.get('plcyExplnCn', '')} \n\
 {item.get('plcySprtCn', '')} \n\
-{item.get('ptcpPrpTrgtCn', '')} \n\
 {item.get('addAplyQlfcCndCn', '')} ".strip() for item in api_list]
     
-    embedding_e5 = get_Embedding_e5(original_text_list, "passage")
+    # embedding_e5 = get_Embedding_e5(original_text_list, "passage")
+    embedding_e5 = []
     embedding_gemini = get_Embedding_gemini(original_text_list, "document")
 
     return original_text_list, embedding_e5, embedding_gemini
@@ -157,7 +157,8 @@ def transform_api_data_for_db_insert(api_list):
                 "policy_id": doc_id,  # 위와 동일한 ID 사용
                 "chunk_id": 1,
                 "content_chunk": original_text_list[i],
-                "embedding_e5": embedding_e5[i].tolist(),
+                # "embedding_e5": embedding_e5[i].tolist(),
+                "embedding_e5": [],
                 "embedding_gemini": embedding_gemini[i],
                 "metadata":{
                     "source":doc.get('source', ''),
@@ -247,7 +248,7 @@ def get_api_db_field_map() :
         "earnMinAmt" : "earn.min_amt",
         "earnMaxAmt" : "earn.max_amt",
         "earnEtcCn" : "earn.etc_content",
-        "ptcpPrpTrgtCn" : "participate_target",
+        "ptcpPrpTrgtCn" : "restricted_target",
         "inqCnt" : "view_count",
         "frstRegDt" : "registered_at",
         "lastMdfcnDt" : "modified_at"
@@ -300,7 +301,8 @@ def get_semantic_search_e5 (search_text):
     search_test_list.append(search_text)
 
     # 1. 검색어에 대한 임베딩 생성
-    query_vector = get_Embedding_e5(search_test_list, "query")[0].tolist()
+    # query_vector = get_Embedding_e5(search_test_list, "query")[0].tolist()
+    query_vector = []
 
     # 2. $vectorSearch 파이프라인 정의
     pipeline = [

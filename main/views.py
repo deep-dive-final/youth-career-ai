@@ -320,6 +320,69 @@ def upload_to_s3(request):
 
     return JsonResponse({"status": "error", "message": "잘못된 요청입니다."})
 
+@csrf_exempt
+def get_policy_requirements(request):
+    policy_id = request.GET.get('id')
+    if not policy_id:
+        return JsonResponse({"status": "error", "message": "policy_id가 필요합니다."}, status=400)
+
+    db = getMongoDbClient()
+    policy = db['policies'].find_one({"policy_id": policy_id})
+
+    if not policy:
+        return JsonResponse({"status": "error", "message": "정책 정보를 찾을 수 없습니다."}, status=404)
+
+    context = f"""
+    [지원 요건]: {policy.get('support_content', '')}
+    [참여 대상 및 제한]: {policy.get('participate_target', '')}
+    [기타 자격]: {policy.get('eligibility', {}).get('text', '')}
+    """
+# AI 프롬프트
+    prompt = f"""
+    당신은 정책 자격 진단 전문가입니다. 아래의 [정책 데이터]를 분석하여 신청 자격 목록을 생성하세요.
+
+    [정책 데이터]
+    {context}
+
+    [지시사항]
+    1. 사용자가 본인의 자격을 확인할 수 있는 핵심 항목을 3~5개 추출하세요.
+    2. **[중요] 나이 조건(최소~최대 연령)은 별개로 나누지 말고 "만 00세~00세"와 같이 하나의 항목으로 통합하여 작성하세요.**
+    3. 상세페이지용 'text'는 원문의 핵심 요건을 변형하지 말고 그대로(예: 대전광역시 거주자) 추출하세요.
+    4. 시뮬레이션용 'question'은 반드시 사용자에게 묻는 질문 형태(예: 현재 대전광역시에 거주하고 계신가요?)로 만드세요.
+    5. 일반 요건은 "condition", 신청 제외 대상은 "exclusion" 타입으로 분류하세요.
+    6. 결과는 반드시 아래 JSON 형식을 엄격히 지켜 답변하세요. (다른 설명은 일절 배제)
+
+{{
+  "status": "success",
+  "questions": [
+    {{
+      "type": "condition", 
+      "text": "만 18세~39세 청년",
+      "question": "현재 만 18세에서 39세 사이의 청년이신가요?"
+    }},
+    {{
+      "type": "exclusion", 
+      "text": "공무원 제외",
+      "question": "현재 공무원으로 재직 중이신가요?"
+    }}
+  ]
+}}
+"""
+
+    try:
+        response = GEMINI_MODEL.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        
+        result = json.loads(response.text.strip())
+        return JsonResponse(result)
+
+    except Exception as e:
+        print(f"🔥 자격 요건 분석 에러: {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
 # 공통 데이터 및 검색 함수들 
 def index(request):
     try:
@@ -346,7 +409,22 @@ def index(request):
         })
     except Exception as e: return render(request, "index.html", {"error": str(e)})
 
-def simulate(request): return render(request, "simulate.html")
+def simulate(request):
+    policy_id = request.GET.get('id')
+    db = getMongoDbClient()
+    policy = db['policies'].find_one({"policy_id": policy_id})
+    
+    user_info = {
+        "age": 28,         
+        "region": "대전",    
+        "is_student": True  
+    }
+    
+    return render(request, "simulate.html", {
+        "policy": policy,
+        "policy_id": policy_id,
+        "user_info": json.dumps(user_info) 
+    })
 
 def policy_detail(request):
     policy_id = request.GET.get('id')
