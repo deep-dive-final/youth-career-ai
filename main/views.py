@@ -12,7 +12,7 @@ from datetime import datetime
 from bson import ObjectId
 import boto3
 from django.conf import settings
-from utils.auth import login_check, get_user_name
+from utils.auth import login_check
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -406,7 +406,7 @@ def index(request):
                 else: item['d_day_label'] = "상시"
             return data_list
 
-        user_name = get_user_name(request)
+        user_name = request.user_name if request.is_authenticated else "게스트"
 
         return render(request, "index.html", {
             "recommended": get_processed_data(collection.find({}).limit(4)), 

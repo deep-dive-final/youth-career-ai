@@ -18,6 +18,7 @@ def _build_payload(user, token_type: str, lifetime: timedelta) -> dict:
     return {
         'sub': str(user["_id"]), # subject: 사용자 PK
         'email': user["email"],
+        'name': user["name"],
         'type': token_type, # 'access' | 'refresh'
         'jti': str(uuid.uuid4()), # JWT ID (블랙리스트용)
         'iat': now, # issued at
@@ -110,13 +111,15 @@ def token_refresh(refresh_token):
     try:
         payload = decode_refresh_token(refresh_token)
     except TokenError as e:
-        return False, None, 'REFRESH TOKEN ERROR'
+        print("[token_refresh] decode error")
+        return False, None
 
     # 사용자 조회
     try:
         user = get_user_by_id(payload['sub'])
     except Exception as e:
-        return False, None, 'USER DB ERROR'
+        print("[token_refresh] user db error")
+        return False, None
 
     # 새로운 토큰 발급
     invalidate_refresh_token(refresh_token)
@@ -126,4 +129,4 @@ def token_refresh(refresh_token):
     token = {"access" : new_access_token,
              "refresh" : new_refresh_token}
     
-    return True, token, 'SUCCESS'
+    return True, token
