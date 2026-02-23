@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 import jwt
 from django.conf import settings
 from accounts.db import get_user_by_id
+from .db import getMongoDbClient
 
 SECRET = settings.SECRET_KEY
 ALGORITHM = 'HS256'
@@ -71,9 +72,12 @@ def decode_refresh_token(token: str) -> dict:
     payload = decode_token(token, expected_type='refresh')
 
     # 블랙리스트 확인 (로그아웃된 토큰)
-    jti = payload.get('jti')
-    #if jti and InvalidatedToken.objects.filter(jti=jti).exists():
-    #    raise TokenError('이미 무효화된 토큰입니다.')
+    db = getMongoDbClient()
+    invalidated_token = db['invalidated_token']
+    token_exist_count = invalidated_token.count_documents({"jti":payload.get('jti')})
+
+    if token_exist_count > 0:
+        raise TokenError('이미 무효화된 토큰입니다.')
 
     return payload
 
@@ -88,13 +92,15 @@ def invalidate_refresh_token(token: str) -> None:
     except TokenError:
         return  # 이미 무효 → 무시
 
-    jti        = payload['jti']
     expired_at = datetime.fromtimestamp(payload['exp'], tz=timezone.utc)
 
-    #InvalidatedToken.objects.get_or_create(
-    #    jti=jti,
-    #    defaults={'expired_at': expired_at},
-    #)
+    db = getMongoDbClient()
+    invalidated_token = db['invalidated_token']
+    invalidated_token.insert_one({
+        "user_id" : payload["sub"],
+        "jti" : payload["jti"],
+        "expired_at" : expired_at
+    })
 
 def token_refresh(refresh_token):
     """
@@ -113,6 +119,7 @@ def token_refresh(refresh_token):
         return False, None, 'USER DB ERROR'
 
     # 새로운 토큰 발급
+    invalidate_refresh_token(refresh_token)
     new_access_token = generate_access_token(user)
     new_refresh_token = generate_refresh_token(user)
 
