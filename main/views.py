@@ -335,7 +335,7 @@ def get_policy_requirements(request):
 
     context = f"""
     [지원 요건]: {policy.get('support_content', '')}
-    [참여 대상 및 제한]: {policy.get('participate_target', '')}
+    [참여 대상 및 제한]: {policy.get('restricted_target', '')}
     [기타 자격]: {policy.get('eligibility', {}).get('text', '')}
     """
 # AI 프롬프트
@@ -453,24 +453,42 @@ def policy_detail(request):
     })
 
 
+# main/views.py
+
 def policy_list(request):
-    """데이터 가공 없이 있는 그대로 861개를 화면에 쏟아냄"""
+    """정렬 파라미터에 따라 정책 목록을 반환"""
     try:
         db = getMongoDbClient()
         collection = db['policies']
         
-        cursor = collection.find({}) 
-        data_list = json.loads(json_util.dumps(list(cursor)))
+        # 1. 정렬 기준 가져오기 (기본값: 최신순)
+        sort_type = request.GET.get('sort', 'latest')
         
-        print(f"DEBUG: 현재 불러온 총 정책 개수 = {len(data_list)}")
+        if sort_type == 'popular':
+            # 인기순: view_count 내림차순
+            cursor = collection.find({}).sort("view_count", -1)
+            title = "인기 정책 목록"
+        elif sort_type == 'deadline':
+            # 마감임박순: 오늘 이후 데이터 중 마감일 오름차순
+            today_str = datetime.now().strftime('%Y%m%d')
+            cursor = collection.find({
+                "dates.apply_period_end": {"$gte": today_str, "$ne": "99991231"}
+            }).sort("dates.apply_period_end", 1)
+            title = "마감 임박 정책"
+        else:
+            # 최신순: inserted_at 내림차순
+            cursor = collection.find({}).sort("inserted_at", -1)
+            title = "최신 등록 정책"
+
+        # 2. 데이터 가공 (D-day 계산 로직 포함 권장)
+        data_list = json.loads(json_util.dumps(list(cursor)))
 
         return render(request, "policy_list.html", {
             "policies": data_list,
-            "title": "전체 정책 목록"
+            "title": title,
+            "sort": sort_type # 현재 어떤 정렬인지 템플릿에 전달
         })
     except Exception as e:
-        import traceback
-        print(f"❌ 오류:\n{traceback.format_exc()}")
         return render(request, "index.html", {"error": str(e)})
 
 @csrf_exempt

@@ -44,11 +44,14 @@
 <div class="policy-list-wrapper">
   {% for policy in policies %}
   <div class="list-card" onclick="location.href='/policy/?id={{ policy.policy_id }}'">
+    <div class="card-header">
+      <span class="badge">{{ policy.category|default:"일반" }}</span>
+      </div>
     <h3 class="policy-title">{{ policy.policy_name }}</h3>
     
     <div class="policy-info">
-      <span>📅 마감일: {{ policy.dates.apply_period_end|default:"정보 없음" }}</span>
-      <span>🔥 조회수: {{ policy.view_count|default:0 }}</span>
+      <span>📅 마감일: {{ policy.dates.apply_period_end }}</span>
+      <span style="color: #ff8e8f;">🔥 조회수 {{ policy.view_count|default:0 }}회</span>
     </div>
   </div>
   {% endfor %}
