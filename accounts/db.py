@@ -24,23 +24,25 @@ def get_user_by_id(id):
     return user
 
 # 사용자 마지막 로그인 시간 업데이트
-def update_user_last_login(objectId):
+def update_user_last_login(objectId, name):
     users_collection = get_user_collection()
 
-    last_login_at = { "last_login_at" : datetime.now() }
+    last_login_at = {"name": name,
+                     "last_login_at" : datetime.now()}
     update_result = users_collection.update_one({ "_id" : objectId}, 
                                                 { "$set": last_login_at })
 
     return str(objectId) if update_result.modified_count > 0 else None
 
 # 신규 사용자 등록
-def insert_user (email, provider):
+def insert_user (email, provider, name):
     db = getMongoDbClient()
     users_collection = db["users"]
     
     new_user = {
         "email" : email,
         "provider" : provider,
+        "name" : name,
         "created_at" : datetime.now(),
         "last_login_at" : datetime.now()
     }
