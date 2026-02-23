@@ -12,6 +12,7 @@ from datetime import datetime
 from bson import ObjectId
 import boto3
 from django.conf import settings
+from utils.auth import login_check, get_user_name
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -384,7 +385,10 @@ def get_policy_requirements(request):
 
 
 # 공통 데이터 및 검색 함수들 
+@login_check
 def index(request):
+    print(f"로그인 여부: {request.is_authenticated}, 로그인 email: {request.email}")
+
     try:
         db = getMongoDbClient()
         collection = db['policies']
@@ -402,10 +406,14 @@ def index(request):
                 else: item['d_day_label'] = "상시"
             return data_list
 
+        user_name = get_user_name(request)
+
         return render(request, "index.html", {
             "recommended": get_processed_data(collection.find({}).limit(4)), 
             "popular": get_processed_data(collection.find({}).sort("view_count", -1).limit(4)), 
-            "deadline": get_processed_data(collection.find({"apply_period_end": {"$ne": "99991231"}}).sort("apply_period_end", 1).limit(4))
+            "deadline": get_processed_data(collection.find({"apply_period_end": {"$ne": "99991231"}}).sort("apply_period_end", 1).limit(4)),
+            "is_login": request.is_authenticated,
+            "user_name": user_name,
         })
     except Exception as e: return render(request, "index.html", {"error": str(e)})
 
