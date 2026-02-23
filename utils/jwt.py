@@ -4,17 +4,18 @@ from datetime import datetime, timezone, timedelta
 
 import jwt
 from django.conf import settings
+from accounts.db import get_user_by_id
 
 SECRET = settings.SECRET_KEY
 ALGORITHM = 'HS256'
-ACCESS_EXPIRE  = timedelta(minutes=5)
-REFRESH_EXPIRE = timedelta(days=7)
+ACCESS_EXPIRE  = settings.AUTH_COOKIE["ACCESS_EXPIRE"]
+REFRESH_EXPIRE = settings.AUTH_COOKIE["REFRESH_EXPIRE"]
 
 # 토큰 생성
 def _build_payload(user, token_type: str, lifetime: timedelta) -> dict:
     now = datetime.now(tz=timezone.utc)
     return {
-        'sub': str(user["id"]), # subject: 사용자 PK
+        'sub': str(user["_id"]), # subject: 사용자 PK
         'email': user["email"],
         'type': token_type, # 'access' | 'refresh'
         'jti': str(uuid.uuid4()), # JWT ID (블랙리스트용)
@@ -42,6 +43,10 @@ class TokenError(Exception):
     """JWT 검증 실패 시 발생"""
     pass
 
+class TokenExpiredError(TokenError):
+    """토큰 만료 시 발생"""
+    pass
+
 def decode_token(token: str, expected_type: str | None = None) -> dict:
     """
     토큰 디코딩 및 검증.
@@ -50,7 +55,7 @@ def decode_token(token: str, expected_type: str | None = None) -> dict:
     try:
         payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
     except jwt.ExpiredSignatureError:
-        raise TokenError('토큰이 만료되었습니다.')
+        raise TokenExpiredError('토큰이 만료되었습니다.')
     except jwt.InvalidTokenError as e:
         raise TokenError(f'유효하지 않은 토큰입니다: {e}')
 
@@ -90,3 +95,28 @@ def invalidate_refresh_token(token: str) -> None:
     #    jti=jti,
     #    defaults={'expired_at': expired_at},
     #)
+
+def token_refresh(refresh_token):
+    """
+    유효한 Refresh Token으로 새 Access Token 발급
+    """
+    # refresh 토큰 복호화
+    try:
+        payload = decode_refresh_token(refresh_token)
+    except TokenError as e:
+        return False, None, 'REFRESH TOKEN ERROR'
+
+    # 사용자 조회
+    try:
+        user = get_user_by_id(payload['sub'])
+    except Exception as e:
+        return False, None, 'USER DB ERROR'
+
+    # 새로운 토큰 발급
+    new_access_token = generate_access_token(user)
+    new_refresh_token = generate_refresh_token(user)
+
+    token = {"access" : new_access_token,
+             "refresh" : new_refresh_token}
+    
+    return True, token, 'SUCCESS'

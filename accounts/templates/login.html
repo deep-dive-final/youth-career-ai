@@ -99,10 +99,10 @@
           <h1 style="margin-bottom: 8px">환영합니다!</h1>
           <p style="color: #7a8a9e">맞춤 정책을 추천받으세요</p>
         </div>
-
         {% if is_login %}
         <div style="text-align: center; margin-top: 50px">
           <h3>로그인 중입니다.</h3>
+          <p>아이디:{{ user_id }}</p>
         </div>
         {% else %}
         <!-- g_id_onload contains Google Identity Services settings -->
@@ -115,7 +115,9 @@
         <!-- g_id_signin places the button on a page and supports customization -->
         <div class="g_id_signin"></div>
 
-        <div class="divider"><span>또는 이메일로 로그인</span></div>
+        <div class="divider">
+          <span>또는 이메일로 로그인</span>
+        </div>
 
         <form id="loginForm" onsubmit="handleLogin(event)">
           <div class="form-group">
@@ -196,20 +198,11 @@
           if (!res.ok)
             throw new Error(data.message || "로그인에 실패했습니다.");
 
-          alert("로그인 성공! 대시보드로 이동합니다.", "success");
+          // alert("로그인 성공! 대시보드로 이동합니다.", "success");
+          location.href = "/";
         } catch (err) {
           alert(err.message, "error");
         }
-
-        const responsePayload = decodeJWT(response.credential);
-
-        console.log("Decoded JWT ID token fields:");
-        console.log("  Full Name: " + responsePayload.name);
-        console.log("  Given Name: " + responsePayload.given_name);
-        console.log("  Family Name: " + responsePayload.family_name);
-        console.log("  Unique ID: " + responsePayload.sub);
-        console.log("  Profile image URL: " + responsePayload.picture);
-        console.log("  Email: " + responsePayload.email);
       }
     </script>
 

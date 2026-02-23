@@ -1,18 +1,22 @@
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.conf import settings
 from utils.json import json_response, error_response, parse_json_body
 from utils.jwt import generate_token_pair, decode_refresh_token, generate_access_token, invalidate_refresh_token, TokenError
-from utils.auth import login_required, require_methods, is_login
+from utils.auth import login_check, require_methods
 from utils.cookie import set_login_cookie
 from .google_auth import verify_google_id_token, get_or_create_user_from_google
 from .db import get_user_by_id
 
+@login_check
 def login(request):
+    print("로그인 여부:", request.is_authenticated)
+    print("로그인 아이디:", request.user_id)
     return render(request, "login.html", 
                   {"GOOGLE_CLIENT_ID" : settings.GOOGLE_CLIENT_ID, 
-                   "is_login" : is_login(request)})
+                   "is_login" : request.is_authenticated,
+                   "user_id" : request.user_id})
 
 @csrf_exempt
 def login_google(request):
@@ -53,7 +57,6 @@ def login_google(request):
 
 # Access Token 재발급
 @csrf_exempt
-@login_required
 @require_methods('POST')
 def token_refresh(request):
     """
@@ -87,7 +90,6 @@ def token_refresh(request):
 
 # 로그아웃
 @csrf_exempt
-@login_required
 @require_methods('POST')
 def logout(request):
     """
@@ -111,7 +113,6 @@ def logout(request):
 
 
 # 내 정보 조회
-@login_required
 @require_methods('GET')
 def me(request):
     """

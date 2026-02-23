@@ -1,52 +1,70 @@
-# accounts/auth.py
 """
 JWT 인증 데코레이터 및 미들웨어.
-DRF의 IsAuthenticated / JWTAuthentication을 대체.
 """
 from functools import wraps
 from bson import ObjectId
-
-from .jwt import TokenError, decode_access_token
+from django.conf import settings
+from .jwt import TokenError, TokenExpiredError, decode_access_token, token_refresh
 from .json import error_response
 from .db import getMongoDbClient
-from .cookie import get_cookie
+from .cookie import get_cookie, set_login_cookie
 
 # 인증 데코레이터
-def login_required(view_func):
+def login_check(view_func):
     """
-    뷰 함수에 JWT 인증을 적용하는 데코레이터.
-
-    사용 예시:
-        @login_required
-        def my_view(request):
-            user = request.user  # 인증된 User 객체
-            ...
-
-    Authorization: Bearer <access_token> 헤더가 없거나 유효하지 않으면
-    401 JSON 응답을 반환합니다.
+    로그인 여부 확인
     """
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
-        token = get_cookie(request, 'astn')
-        if not token:
-            return error_response('인증 토큰이 필요합니다.', status=401)
 
+        request.is_authenticated = False
+        request.user_id = None
+        request.email = None
+        
+        # access 토큰 확인
+        token = get_cookie(request, settings.AUTH_COOKIE["ACCESS_NAME"])
+        if not token:
+            return view_func(request, *args, **kwargs)
+        
         try:
             payload = decode_access_token(token)
-        except TokenError as e:
-            return error_response(str(e), status=401)
 
+            request.is_authenticated = True
+            request.user_id = payload["sub"]
+            request.email = payload["email"]
+            
+            return view_func(request, *args, **kwargs)
+        except TokenExpiredError:
+            # access 토큰 만료시 refresh 토큰으로 access 토큰 재발급 처리
+            refresh_token = get_cookie(request, settings.AUTH_COOKIE["REFRESH_NAME"])
+            token_refresh_result, new_token, message = token_refresh(refresh_token)
+            print("[is_login token_refresh]", token_refresh_result, message)
+
+            if not token_refresh_result:
+                return view_func(request, *args, **kwargs)
+            
+            payload = decode_access_token(new_token["access"])
+
+            request.is_authenticated = True
+            request.user_id = payload["sub"]
+            request.email = payload["email"]
+
+            response = view_func(request, *args, **kwargs)
+            set_login_cookie(response, new_token)
+            return response
+        except TokenError:
+            return view_func(request, *args, **kwargs)
+
+        #-------------------------------------------------
+        # 로그인 체크시 사용자 조회까지는 안해도 될 것 같아서 주석 처리. 나중에 필요하면 주석 해제
         # 사용자 조회
-        db = getMongoDbClient()
-        users_collection = db["users"]
-        user = users_collection.find_one({ "_id" : ObjectId(payload["sub"]) })
+        # db = getMongoDbClient()
+        # users_collection = db["users"]
+        # user = users_collection.find_one({ "_id" : ObjectId(payload["sub"]) })
 
-        if user == None:
-            return error_response('사용자를 찾을 수 없습니다.', status=401)
-
-        # 뷰에서 request.user 로 접근 가능
-        request.user = user
-        return view_func(request, *args, **kwargs)
+        # if user == None:
+        #     return False, 'USER DB ERROR', None
+        #-------------------------------------------------
 
     return wrapper
 
@@ -70,10 +88,3 @@ def require_methods(*methods):
             return view_func(request, *args, **kwargs)
         return wrapper
     return decorator
-
-def is_login(request):
-    token = get_cookie(request, 'ASTN')
-    if not token:
-        return False
-
-    return True
