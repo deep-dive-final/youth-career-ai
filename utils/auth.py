@@ -4,7 +4,7 @@ JWT 인증 데코레이터 및 미들웨어.
 from functools import wraps
 from bson import ObjectId
 from django.conf import settings
-from .jwt import TokenError, TokenExpiredError, decode_access_token, token_refresh
+from .jwt import TokenError, TokenExpiredError, decode_access_token, token_refresh, invalidate_refresh_token
 from .json import error_response
 from .db import getMongoDbClient
 from .cookie import get_cookie, set_login_cookie

@@ -221,9 +221,14 @@
         <a href="/survey" class="nav-item">설문조사</a>
         <a href="/search" class="nav-item">정책 검색</a>
         <a href="/saved" class="nav-item">저장 목록</a>
+        {% if is_login %}
+        <a href="/site_admin" class="nav-item">관리자</a>
+        <button class="nav-item" onclick="logout('/')">로그아웃</button>
+        {% endif %}
       </nav>
     </div>
 
     <script src="{% static 'js/main.js' %}"></script>
+    <script src="{% static 'js/common.js' %}"></script>
   </body>
 </html>
