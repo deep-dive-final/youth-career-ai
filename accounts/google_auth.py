@@ -54,7 +54,7 @@ def get_or_create_user_from_google(payload: dict) -> dict:
 
     if user_id:
         user_info = {
-            "id" : user_id,
+            "_id" : user_id,
             "email" : email
         }
     else:

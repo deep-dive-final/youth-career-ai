@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import timedelta
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -165,3 +166,11 @@ CSRF_COOKIE_SECURE = not IS_DEV
 
 # google login 연동에 필요함
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
+
+# 인증쿠키
+AUTH_COOKIE = {
+    "ACCESS_NAME" : "ASTN",
+    "REFRESH_NAME" : "RSTN",
+    "ACCESS_EXPIRE" : timedelta(minutes=5),
+    "REFRESH_EXPIRE": timedelta(days=7)
+}

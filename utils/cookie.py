@@ -1,4 +1,3 @@
-from django.http import HttpResponse
 from django.conf import settings
 
 def set_login_cookie(response, tokens):
@@ -7,11 +6,14 @@ def set_login_cookie(response, tokens):
     
     :param tokens: 로그인 토큰
     """
-    # response = HttpResponse("login")
-    set_token_cookie('ASTN', tokens["access"], response)
-    set_token_cookie('RSTN', tokens["refresh"], response)
+    access_cookie_name = settings.AUTH_COOKIE["ACCESS_NAME"]
+    refresh_cookie_name = settings.AUTH_COOKIE["REFRESH_NAME"]
+    refresh_cookie_expire = int(settings.AUTH_COOKIE["REFRESH_EXPIRE"].total_seconds())
 
-def set_token_cookie(name, token, response):
+    set_token_cookie(response, access_cookie_name, tokens["access"], refresh_cookie_expire)
+    set_token_cookie(response, refresh_cookie_name, tokens["refresh"], refresh_cookie_expire)
+    
+def set_token_cookie(response, name, token, max_age):
     """
     Docstring for set_token_cookie
     
@@ -22,7 +24,8 @@ def set_token_cookie(name, token, response):
     response.set_cookie(
         name,
         token, 
-        httponly=True, 
+        httponly=True,
+        max_age=max_age,
         secure=not settings.IS_DEV,
         samesite='Strict'
     )
