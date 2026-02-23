@@ -30,6 +30,13 @@ def set_token_cookie(response, name, token, max_age):
         samesite='Strict'
     )
 
+def set_cookie_for_logout(response):
+    access_cookie_name = settings.AUTH_COOKIE["ACCESS_NAME"]
+    refresh_cookie_name = settings.AUTH_COOKIE["REFRESH_NAME"]
+
+    set_token_cookie(response, access_cookie_name, "", -1)
+    set_token_cookie(response, refresh_cookie_name, "", -1)
+
 def get_cookie(request, cookie_name):
     """
     쿠키 조회

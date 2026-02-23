@@ -8,9 +8,6 @@ urlpatterns = [
     # Google ID Token → JWT 발급
     path("api/auth/google/", views.login_google, name="google_login"),
 
-    # Refresh Token → 새 Access Token
-    path("api/auth/refresh/", views.token_refresh, name="token_refresh"),
-
     # Refresh Token 블랙리스트 등록
     path("api/auth/logout/", views.logout, name="logout"),
 
