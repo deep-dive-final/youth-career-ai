@@ -88,3 +88,15 @@ def require_methods(*methods):
             return view_func(request, *args, **kwargs)
         return wrapper
     return decorator
+
+def get_user_name(request):
+    """
+    request 에서 user_name 조회
+    email 에서 @ 앞부분을 user_name 으로 사용함
+    """
+    user_name = '게스트'
+
+    if request.is_authenticated and request.email != None and "@" in request.email:
+        user_name = request.email.split("@")[0] 
+
+    return user_name
