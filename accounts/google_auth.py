@@ -40,6 +40,7 @@ def get_or_create_user_from_google(payload: dict) -> dict:
     반환: (user, created: bool)
     """
     email = payload['email']
+    name = payload['name']
     provider = "google"
 
     # 기존에 저장된 유저인지 확인
@@ -47,15 +48,20 @@ def get_or_create_user_from_google(payload: dict) -> dict:
 
     if exist_user:
         # 기존에 저장된 유저이면 update
-        user_id = update_user_last_login(exist_user["_id"])
+        user_id = update_user_last_login(exist_user["_id"], name)
     else:
         # 신규 유저이면 insert
-        user_id = insert_user(email, provider)
+        user_id = insert_user(email, provider, name)
 
     if user_id:
         user_info = {
             "_id" : user_id,
+<<<<<<< HEAD
             "email" : email
+=======
+            "email" : email,
+            "name" : name
+>>>>>>> 867db0090cb4b408dcb8193f1fa9a1d2b5ce54f4
         }
     else:
         user_info = None

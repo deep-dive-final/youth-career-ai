@@ -406,8 +406,6 @@ def index(request):
                 else: item['d_day_label'] = "상시"
             return data_list
 
-        user_name = get_user_name(request)
-
         return render(request, "index.html", {
             "recommended": get_processed_data(collection.find({}).limit(4)), 
             "popular": get_processed_data(collection.find({}).sort("view_count", -1).limit(4)), 
