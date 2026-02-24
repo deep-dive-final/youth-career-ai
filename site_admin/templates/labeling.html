@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>레이블 데이터셋 관리</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        font-family: "Noto Sans KR", sans-serif;
+      }
+      code,
+      .mono {
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      body {
+        color: #e2e8f0;
+      }
+
+      .card {
+        background: #d9dde7;
+        border: 1px solid #2d3148;
+        border-radius: 12px;
+        transition: border-color 0.2s;
+      }
+      .card:hover {
+        border-color: #4a5080;
+      }
+
+      .label-item {
+        background: #f5e1ee;
+        border: 1px solid #252840;
+        border-radius: 8px;
+        transition: all 0.2s;
+        animation: slideIn 0.25s ease;
+      }
+      .label-item:hover {
+        border-color: #3d4170;
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes fadeOut {
+        from {
+          opacity: 1;
+          transform: scaleY(1);
+          max-height: 300px;
+        }
+        to {
+          opacity: 0;
+          transform: scaleY(0.95);
+          max-height: 0;
+          padding: 0;
+          margin: 0;
+        }
+      }
+
+      .removing {
+        animation: fadeOut 0.3s ease forwards;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .badge-e5 {
+        background: #1e3a5f;
+        color: #60a5fa;
+        border: 1px solid #2563eb44;
+      }
+      .badge-gemini {
+        background: #1e3d2e;
+        color: #4ade80;
+        border: 1px solid #16a34a44;
+      }
+      .badge-bm25 {
+        background: #3d2a1e;
+        color: #fb923c;
+        border: 1px solid #ea580c44;
+      }
+
+      .delete-btn {
+        background: #e4d0f7;
+        color: #f87171;
+        border: 1px solid #7f1d1d55;
+        border-radius: 6px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s;
+        white-space: nowrap;
+      }
+      .delete-btn:hover {
+        background: #3f1a25;
+        border-color: #f87171;
+        box-shadow: 0 0 8px #f8717133;
+      }
+      .delete-btn:active {
+        transform: scale(0.97);
+      }
+      .delete-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .query-box {
+        background: #f5e2ef;
+        border: 1px solid #1e2235;
+        border-radius: 6px;
+        padding: 10px 14px;
+        font-size: 13px;
+        color: #585b5f;
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+
+      .scroll-top-btn {
+        position: fixed;
+        bottom: 32px;
+        right: 32px;
+        width: 40px;
+        height: 40px;
+        background: #3730a3;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.3s;
+        z-index: 100;
+      }
+      .scroll-top-btn.visible {
+        opacity: 1;
+      }
+
+      /* 확인 모달 */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+      .modal-overlay.show {
+        opacity: 1;
+        pointer-events: all;
+      }
+      .modal-box {
+        background: #1a1d27;
+        border: 1px solid #3d4170;
+        border-radius: 14px;
+        padding: 28px 32px;
+        max-width: 400px;
+        width: 90%;
+        transform: scale(0.95);
+        transition: transform 0.2s;
+      }
+      .modal-overlay.show .modal-box {
+        transform: scale(1);
+      }
+
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f1117;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #2d3148;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen">
+    <!-- 헤더 -->
+    <header
+      class="sticky top-0 z-50 border-b border-[#2d3148]"
+      style="background: #d8dde9f2; backdrop-filter: blur(12px)"
+    >
+      <div
+        class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between"
+      >
+        <div class="flex items-center gap-3">
+          <div>
+            <h1 class="text-white font-semibold text-base leading-tight">
+              레이블 데이터셋 관리
+            </h1>
+            <p class="text-[#4a5080] text-xs mono">labeled_dataset</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span
+            class="badge"
+            style="
+              background: #edd5e2;
+              color: #94a3b8;
+              border: 1px solid #2d3148;
+            "
+          >
+            총
+            <span id="totalCount" class="text-white font-semibold mx-1"
+              >{{ labeled_dataset|length }}</span
+            >
+            건
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 메인 -->
+    <main class="max-w-6xl mx-auto px-6 py-8 space-y-6">
+      {% if not labeled_dataset %}
+      <div class="text-center py-24 text-[#4a5080]">
+        <div class="text-5xl mb-4">📭</div>
+        <p class="text-lg">데이터가 없습니다</p>
+      </div>
+      {% endif %} {% if labeled_dataset|length > 0 %}
+      <div class="text-right text-sm text-[#4a5080] mb-2">
+        {% for i in page_range %}
+        <a href="/site_admin/labeling/?page={{ i }}&page_size=10">
+          {% if current_page == i %}
+          <span class="font-bold text-black">{{ i }}</span>
+          {% else %} {{ i }} {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %} {% for dataset in labeled_dataset %}
+      <div class="card p-6" id="dataset-{{ dataset.query_id }}">
+        <!-- 카드 헤더 -->
+        <div class="flex items-start justify-between gap-4 mb-4">
+          <div class="flex items-center gap-3">
+            <span
+              class="mono text-indigo-400 font-semibold text-sm border border-indigo-900 px-3 py-1 rounded-full"
+            >
+              {{ dataset.query_id }}
+            </span>
+            <span class="text-[#4a5080] text-sm">
+              레이블
+              <span class="label-count text-red-300 font-medium"
+                >{{ dataset.label|length }}</span
+              >개
+            </span>
+          </div>
+          <button
+            onclick="toggleQuery('{{ dataset.query_id }}')"
+            class="text-xs text-[#4a5080] hover:text-slate-300 transition-colors flex items-center gap-1"
+          >
+            쿼리 보기
+            <svg
+              id="arrow-{{ dataset.query_id }}"
+              class="w-3 h-3 transition-transform"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <!-- 쿼리 (접기/펼치기) -->
+        <div id="query-{{ dataset.query_id }}" class="hidden mb-4">
+          <div class="query-box">{{ dataset.query }}</div>
+        </div>
+
+        <!-- 레이블 목록 -->
+        <div class="space-y-3" id="labels-{{ dataset.query_id }}">
+          {% for label in dataset.label %}
+          <div
+            class="label-item p-4"
+            id="label-{{ dataset.query_id }}-{{ label.policy_id }}-{{ label.chunk_id }}"
+            data-query-id="{{ dataset.query_id }}"
+            data-policy-id="{{ label.policy_id }}"
+            data-chunk-id="{{ label.chunk_id }}"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <!-- 소스 배지 + policy_id -->
+                <div class="flex flex-wrap items-center gap-2 mb-2">
+                  <!-- prettier-ignore -->
+                  {% for src in label.sources.split|join:"," %}{% endfor %}
+                  {% if "e5" in label.sources %}
+                  <span class="badge badge-e5">⚡ e5</span>
+                  {% endif %} {% if "gemini" in label.sources %}
+                  <span class="badge badge-gemini">✦ gemini</span>
+                  {% endif %} {% if "bm25" in label.sources %}
+                  <span class="badge badge-bm25">◎ bm25</span>
+                  {% endif %}
+                  <span class="mono text-[#4a5080] text-xs"
+                    >{{ label.policy_id }}</span
+                  >
+                  <span class="text-[#2d3148] text-xs"
+                    >chunk {{ label.chunk_id }}</span
+                  >
+                </div>
+
+                <!-- 스니펫 -->
+                <p
+                  class="text-slate-300 text-sm leading-relaxed line-clamp-2"
+                  style="color: #1e2235"
+                >
+                  {{ label.snippet }}
+                </p>
+
+                <!-- 점수 -->
+                {% if label.scores %}
+                <p class="mono text-[#4a5080] text-xs mt-2">
+                  {{ label.scores }}
+                </p>
+                {% endif %}
+              </div>
+
+              <!-- 삭제 버튼 -->
+              <button
+                class="delete-btn flex-shrink-0"
+                onclick="confirmDelete(this)"
+                data-query-id="{{ dataset.query_id }}"
+                data-policy-id="{{ label.policy_id }}"
+                data-chunk-id="{{ label.chunk_id }}"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+          {% empty %}
+          <div
+            class="text-center py-8 text-[#4a5080] text-sm"
+            id="empty-{{ dataset.query_id }}"
+          >
+            레이블 항목이 없습니다
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </main>
+
+    <!-- 스크롤 상단 버튼 -->
+    <button
+      class="scroll-top-btn"
+      id="scrollTopBtn"
+      onclick="window.scrollTo({ top: 0, behavior: 'smooth' })"
+    >
+      <svg
+        class="w-4 h-4 text-white"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M5 15l7-7 7 7"
+        />
+      </svg>
+    </button>
+
+    <!-- 확인 모달 -->
+    <div class="modal-overlay" id="confirmModal">
+      <div class="modal-box">
+        <div class="text-red-400 text-2xl mb-3">🗑</div>
+        <h3 class="text-white font-semibold text-base mb-1">
+          레이블 항목 삭제
+        </h3>
+        <p class="text-slate-400 text-sm mb-1">이 항목을 삭제하시겠습니까?</p>
+        <p class="mono text-xs text-[#4a5080] mb-6" id="modalPolicyId"></p>
+        <div class="flex gap-3">
+          <button
+            onclick="closeModal()"
+            class="flex-1 py-2 rounded-lg border border-[#2d3148] text-slate-400 text-sm hover:border-slate-500 transition-colors"
+          >
+            취소
+          </button>
+          <button
+            id="confirmDeleteBtn"
+            class="flex-1 py-2 rounded-lg bg-red-900 border border-red-800 text-red-300 text-sm font-medium hover:bg-red-800 transition-colors"
+          >
+            삭제 확인
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 토스트 알림 -->
+    <div
+      id="toast"
+      class="fixed bottom-8 left-1/2 -translate-x-1/2 z-300 transition-all duration-300 opacity-0 translate-y-4 pointer-events-none"
+    >
+      <div
+        id="toastMsg"
+        class="px-5 py-3 rounded-xl text-sm font-medium shadow-2xl border"
+      ></div>
+    </div>
+
+    <script>
+      const CSRF_TOKEN = "{{ csrf_token }}";
+      let pendingDeleteData = null;
+
+      // 쿼리 토글
+      function toggleQuery(queryId) {
+        const el = document.getElementById(`query-${queryId}`);
+        const arrow = document.getElementById(`arrow-${queryId}`);
+        el.classList.toggle("hidden");
+        arrow.style.transform = el.classList.contains("hidden")
+          ? ""
+          : "rotate(180deg)";
+      }
+
+      // 삭제 확인 모달 열기
+      function confirmDelete(btn) {
+        pendingDeleteData = {
+          queryId: btn.dataset.queryId,
+          policyId: btn.dataset.policyId,
+          chunkId: parseInt(btn.dataset.chunkId),
+          btn: btn,
+        };
+        document.getElementById("modalPolicyId").textContent =
+          `policy: ${pendingDeleteData.policyId} | chunk: ${pendingDeleteData.chunkId}`;
+        document.getElementById("confirmModal").classList.add("show");
+      }
+
+      function closeModal() {
+        document.getElementById("confirmModal").classList.remove("show");
+        pendingDeleteData = null;
+      }
+
+      // 모달 외부 클릭 시 닫기
+      document
+        .getElementById("confirmModal")
+        .addEventListener("click", function (e) {
+          if (e.target === this) closeModal();
+        });
+
+      // 삭제 실행
+      document
+        .getElementById("confirmDeleteBtn")
+        .addEventListener("click", async function () {
+          if (!pendingDeleteData) return;
+          const { queryId, policyId, chunkId, btn } = pendingDeleteData;
+          closeModal();
+
+          btn.disabled = true;
+          btn.textContent = "삭제 중...";
+
+          try {
+            const res = await fetch("{% url 'delete_label' %}", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": CSRF_TOKEN,
+              },
+              body: JSON.stringify({
+                query_id: queryId,
+                policy_id: policyId,
+              }),
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+              // 항목 삭제 애니메이션
+              const labelEl = document.getElementById(
+                `label-${queryId}-${policyId}-${chunkId}`,
+              );
+              labelEl.classList.add("removing");
+              setTimeout(() => {
+                labelEl.remove();
+                updateLabelCount(queryId);
+              }, 300);
+              showToast("삭제되었습니다", "success");
+            } else {
+              btn.disabled = false;
+              btn.textContent = "삭제";
+              showToast(data.error || "삭제 실패", "error");
+            }
+          } catch (err) {
+            btn.disabled = false;
+            btn.textContent = "삭제";
+            showToast("네트워크 오류가 발생했습니다", "error");
+          }
+        });
+
+      // 레이블 카운트 업데이트
+      function updateLabelCount(queryId) {
+        const container = document.getElementById(`labels-${queryId}`);
+        const items = container.querySelectorAll(".label-item:not(.removing)");
+        const countEl = document.querySelector(
+          `#dataset-${queryId} .label-count`,
+        );
+        if (countEl) countEl.textContent = items.length;
+
+        // 빈 상태 표시
+        if (items.length === 0) {
+          container.innerHTML = `<div class="text-center py-8 text-[#4a5080] text-sm">레이블 항목이 없습니다</div>`;
+        }
+      }
+
+      // 토스트
+      function showToast(msg, type) {
+        const toast = document.getElementById("toast");
+        const toastMsg = document.getElementById("toastMsg");
+        const isSuccess = type === "success";
+        toastMsg.textContent = (isSuccess ? "✓  " : "✕  ") + msg;
+        toastMsg.className = `px-5 py-3 rounded-xl text-sm font-medium shadow-2xl border ${
+          isSuccess
+            ? "bg-green-950 border-green-800 text-green-300"
+            : "bg-red-950 border-red-800 text-red-300"
+        }`;
+        toast.classList.remove(
+          "opacity-0",
+          "translate-y-4",
+          "pointer-events-none",
+        );
+        setTimeout(() => {
+          toast.classList.add(
+            "opacity-0",
+            "translate-y-4",
+            "pointer-events-none",
+          );
+        }, 2500);
+      }
+
+      // 스크롤 상단 버튼
+      window.addEventListener("scroll", () => {
+        const btn = document.getElementById("scrollTopBtn");
+        btn.classList.toggle("visible", window.scrollY > 300);
+      });
+    </script>
+  </body>
+</html>
