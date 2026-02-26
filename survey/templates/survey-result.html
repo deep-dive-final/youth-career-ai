@@ -227,7 +227,7 @@
             const detailUrl = `/policy/detail/?id=${encodeURIComponent(p.policy_id)}`;
 
             return `
-              <a href="${detailUrl}" style="text-decoration: none;">
+              <a href="${detailUrl}" style="text-decoration:none; color:inherit; display:block;">
                 <div style="background: white; border-radius: 24px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: all 0.3s;"
                     onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(0,0,0,0.1)'"
                     onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)'">

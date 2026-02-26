@@ -72,24 +72,59 @@ def embed_query_gemini(text: str) -> list[float]:
     emb = result["embedding"]
     return emb
 
-def vector_search_policies(db, query_vec: list[float], topk: int = 10):
+def build_prefilter(profile: dict) -> dict | None:
     """
-    policy_vectors.embedding_gemini 대상으로 벡터검색 후
-    policy_id 기준으로 group해서 TopK 정책을 반환
+    MongoDB $vectorSearch.filter용 조건 생성
+    - region: 사용자 지역 + 전국 허용
+    - sub_categories: 사용자 관심분야(복수) 중 하나라도 포함되는 정책
     """
+    region = (profile.get("region") or "").strip()
+    interests = profile.get("interests") or profile.get("purpose") or []
+
+    and_filters = []
+
+    # 1) region 필터
+    # - 사용자가 지역을 선택했으면: 그 지역 + 전국 정책 허용
+    if region and region != "전국":
+        and_filters.append({"metadata.region": {"$in": [region, "전국"]}})
+    # - region이 비었거나 전국이면 region은 굳이 제한하지 않음(= recall 유지)
+
+    # 2) sub_categories 필터 (배열 필드라고 가정)
+    if isinstance(interests, list):
+        cats = [_strip_emoji(x) for x in interests if str(x).strip()]
+        cats = list(dict.fromkeys(cats))  # 중복 제거
+        if cats:
+            and_filters.append({"metadata.sub_categories": {"$in": cats}})
+    else:
+        cat = _strip_emoji(str(interests))
+        if cat:
+            and_filters.append({"metadata.sub_categories": {"$in": [cat]}})
+
+    if not and_filters:
+        return None
+
+    return {"$and": and_filters} if len(and_filters) > 1 else and_filters[0]
+
+def vector_search_policies(db, query_vec: list[float], topk: int = 10, prefilter: dict | None = None):
     if len(query_vec) != 3072:
         raise ValueError(f"Gemini embedding dim mismatch: {len(query_vec)} (expected 3072)")
 
+    vector_stage = {
+        "$vectorSearch": {
+            "index": "vector_index_v2",
+            "path": "embedding_gemini_v3",
+            "queryVector": query_vec,
+            "numCandidates": 300,
+            "limit": 80,
+        }
+    }
+
+    # ✅ prefilter 적용
+    if prefilter:
+        vector_stage["$vectorSearch"]["filter"] = prefilter
+
     pipeline = [
-        {
-            "$vectorSearch": {
-                "index": "vector_index_v2",   # ✅ Atlas 인덱스 이름
-                "path": "embedding_gemini_v2",
-                "queryVector": query_vec,
-                "numCandidates": 300,
-                "limit": 80
-            }
-        },
+        vector_stage,
         {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
         {"$sort": {"score": -1}},
         {"$group": {
@@ -109,7 +144,6 @@ def vector_search_policies(db, query_vec: list[float], topk: int = 10):
             "as": "policy"
         }},
         {"$unwind": {"path": "$policy", "preserveNullAndEmptyArrays": True}},
-
         {"$project": {
             "_id": 0,
             "policy_id": "$_id",
@@ -122,6 +156,7 @@ def vector_search_policies(db, query_vec: list[float], topk: int = 10):
     ]
 
     return list(db.policy_vectors.aggregate(pipeline))
+
 
 
 
