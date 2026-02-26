@@ -56,12 +56,8 @@ def get_or_create_user_from_google(payload: dict) -> dict:
     if user_id:
         user_info = {
             "_id" : user_id,
-<<<<<<< HEAD
-            "email" : email
-=======
             "email" : email,
             "name" : name
->>>>>>> 867db0090cb4b408dcb8193f1fa9a1d2b5ce54f4
         }
     else:
         user_info = None
