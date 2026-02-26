@@ -13,4 +13,6 @@ urlpatterns = [
     path("chart", views.chart, name="chart"),
     path("api/chart/getData", views.get_data_for_chart, name="getChartData"),
     path("api/chart/getArrayData", views.get_arr_data_for_chart, name="getArrayChartData"),
+    path("labeling/", views.labeling, name="labeling"),
+    path("api/labeling/delete-label/", views.delete_label, name="delete_label"),
 ]
