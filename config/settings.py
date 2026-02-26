@@ -134,3 +134,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+MLFLOW_ENABLED = True      # 개발에서만 True 권장
+MLFLOW_EXPERIMENT = "policy-retrieval-gemini"
+MLFLOW_SAMPLE_RATE = 0.1   # 10%만 기록(로그 폭발 방지)
