@@ -111,11 +111,6 @@ def token_refresh(refresh_token):
     try:
         payload = decode_refresh_token(refresh_token)
     except TokenError as e:
-<<<<<<< Updated upstream
-=======
-
-        return False, None, 'REFRESH TOKEN ERROR'
->>>>>>> Stashed changes
         print("[token_refresh] decode error")
         return False, None
 
@@ -123,10 +118,6 @@ def token_refresh(refresh_token):
     try:
         user = get_user_by_id(payload['sub'])
     except Exception as e:
-<<<<<<< Updated upstream
-=======
-        return False, None, 'USER DB ERROR'
->>>>>>> Stashed changes
         print("[token_refresh] user db error")
         return False, None
 
@@ -138,9 +129,4 @@ def token_refresh(refresh_token):
     token = {"access" : new_access_token,
              "refresh" : new_refresh_token}
     
-<<<<<<< Updated upstream
     return True, token
-=======
-    return True, token, 'SUCCESS'
-    return True, token
->>>>>>> Stashed changes
