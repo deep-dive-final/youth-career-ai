@@ -26,4 +26,7 @@ urlpatterns = [
     path("api/upload_to_s3/", views.upload_to_s3, name="upload_to_s3"), # S3 업로드 API
 
     path("api/get_policy_requirements/", views.get_policy_requirements, name="get_policy_requirements"), # 정책별 서류 요구사항 불러오기 API
+
+    path("calendar/", views.calendar_view, name="calendar"), # 캘린더 페이지
+
 ]
