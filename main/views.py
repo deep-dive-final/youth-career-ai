@@ -393,7 +393,9 @@ def index(request):
         db = getMongoDbClient()
         collection = db['policies']
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        
+        today_str = today.strftime('%Y%m%d')
+        user_name = get_user_name(request)
+
         def get_processed_data(cursor):
             data_list = json.loads(json_util.dumps(list(cursor)))
             for item in data_list:
@@ -408,8 +410,14 @@ def index(request):
 
         return render(request, "index.html", {
             "recommended": get_processed_data(collection.find({}).limit(4)), 
-            "popular": get_processed_data(collection.find({}).sort("view_count", -1).limit(4)), 
-            "deadline": get_processed_data(collection.find({"apply_period_end": {"$ne": "99991231"}}).sort("apply_period_end", 1).limit(4)),
+            "popular": get_processed_data(collection.aggregate([
+                { "$addFields": { "view_count_int": { "$toInt": "$view_count" } } },
+                { "$sort": { "view_count_int": -1 } },
+                { "$limit": 4 }
+            ])), 
+            "deadline": get_processed_data(collection.find({
+                "dates.apply_period_end": {"$gte": today_str, "$ne": "99991231"}
+            }).sort("dates.apply_period_end", 1).limit(4)),
             "is_login": request.is_authenticated,
             "user_name": user_name,
         })
@@ -451,40 +459,47 @@ def policy_detail(request):
     })
 
 
-# main/views.py
-
 def policy_list(request):
-    """정렬 파라미터에 따라 정책 목록을 반환"""
     try:
         db = getMongoDbClient()
         collection = db['policies']
-        
-        # 1. 정렬 기준 가져오기 (기본값: 최신순)
         sort_type = request.GET.get('sort', 'latest')
-        
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_str = today.strftime('%Y%m%d')
+
         if sort_type == 'popular':
-            # 인기순: view_count 내림차순
-            cursor = collection.find({}).sort("view_count", -1)
-            title = "인기 정책 목록"
+            pipeline = [
+                { "$addFields": { "view_count_int": { "$toInt": "$view_count" } } },
+                { "$sort": { "view_count_int": -1 } }
+            ]
+            cursor = collection.aggregate(pipeline)
+            title = "🔥 인기 정책 목록"
         elif sort_type == 'deadline':
-            # 마감임박순: 오늘 이후 데이터 중 마감일 오름차순
-            today_str = datetime.now().strftime('%Y%m%d')
             cursor = collection.find({
                 "dates.apply_period_end": {"$gte": today_str, "$ne": "99991231"}
             }).sort("dates.apply_period_end", 1)
-            title = "마감 임박 정책"
+            title = "⏰ 마감 임박 정책"
         else:
-            # 최신순: inserted_at 내림차순
             cursor = collection.find({}).sort("inserted_at", -1)
-            title = "최신 등록 정책"
+            title = "🌟 추천 정책"
 
-        # 2. 데이터 가공 (D-day 계산 로직 포함 권장)
-        data_list = json.loads(json_util.dumps(list(cursor)))
+        policies = []
+        for item in cursor:
+            p = json.loads(json_util.dumps(item))
+            end_date = p.get('dates', {}).get('apply_period_end', '')
+            if end_date and end_date != "99991231":
+                try:
+                    delta = (datetime.strptime(end_date, "%Y%m%d") - today).days
+                    p['d_day_label'] = f"D-{delta}" if delta > 0 else ("D-Day" if delta == 0 else "마감")
+                except: p['d_day_label'] = "-"
+            else:
+                p['d_day_label'] = "상시"
+            policies.append(p)
 
         return render(request, "policy_list.html", {
-            "policies": data_list,
+            "policies": policies,
             "title": title,
-            "sort": sort_type # 현재 어떤 정렬인지 템플릿에 전달
+            "sort": sort_type
         })
     except Exception as e:
         return render(request, "index.html", {"error": str(e)})

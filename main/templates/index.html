@@ -90,7 +90,7 @@
             class="btn-text"
             style="text-decoration: none"
           >
-            전체보기
+            +더보기
           </a>
         </div>
         <div class="policy-scroll">
@@ -114,15 +114,9 @@
 
       <div class="policy-section">
         <div class="section-header">
-          <h3>🔥 인기 정책</h3>
-          <a
-            href="{% url 'policy_list' %}?sort=latest"
-            class="btn-text"
-            style="text-decoration: none"
-          >
-            전체보기
-          </a>
-        </div>
+  <h3>🔥 인기 정책</h3>
+  <a href="{% url 'policy_list' %}?sort=popular" class="btn-text" style="text-decoration: none">+더보기</a>
+</div>
         <div class="policy-scroll">
           {% for policy in popular %}
           <div
@@ -143,15 +137,9 @@
 
       <div class="policy-section">
         <div class="section-header">
-          <h3>⏰ 마감임박</h3>
-          <a
-            href="{% url 'policy_list' %}?sort=latest"
-            class="btn-text"
-            style="text-decoration: none"
-          >
-            전체보기
-          </a>
-        </div>
+  <h3>⏰ 마감임박</h3>
+  <a href="{% url 'policy_list' %}?sort=deadline" class="btn-text" style="text-decoration: none">+더보기</a>
+</div>
         <div class="policy-scroll">
           {% for policy in deadline %}
           <div
