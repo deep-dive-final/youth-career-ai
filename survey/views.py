@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
-from .recommend import build_query_text, embed_query_gemini, vector_search_policies, build_prefilter
+from .recommend import build_query_text, embed_query_gemini, vector_search_policies, build_prefilter_region_only
 
 
 import time, hashlib, random
@@ -177,34 +177,31 @@ def _hash_text(s: str) -> str:
 # -------------------
 @require_GET
 def recommend_policies(request):
-    """
-    GET /survey/api/recommend/?topk=5
-    - user_profiles(anon_id) 기반으로 query 만들고
-    - Gemini embedding -> vector search -> 정책 문서 붙여서 반환
-    """
     try:
         db = get_db()
-        anon_id = get_anon_id(request)
 
-        profile = db.user_profiles.find_one({"anon_id": anon_id})
+        # ✅ 가장 최근 프로필 1개 가져오기 (updated_at 우선, 없으면 created_at)
+        profile = db.user_profiles.find_one(
+            {},
+            sort=[("updated_at", -1), ("created_at", -1)]
+        )
         if not profile:
             return JsonResponse({"ok": False, "error": "설문 정보가 없어요."}, status=400)
 
         topk = int(request.GET.get("topk", 5))
 
-         # --- 실험 로깅을 위한 타이밍 측정 ---
         t0 = time.perf_counter()
 
         query_text = build_query_text(profile)
-
         t1 = time.perf_counter()
+
         query_vec = embed_query_gemini(query_text)
         t2 = time.perf_counter()
-        prefilter = build_prefilter(profile)   # ✅ 여기 추가
-        hits = vector_search_policies(db, query_vec, topk=topk, prefilter=prefilter)  # ✅ 인자 추가
+
+        prefilter = build_prefilter_region_only(profile)
+        hits = vector_search_policies(db, query_vec, topk=topk, prefilter=prefilter)
         t3 = time.perf_counter()
 
-        # 프론트가 쓰기 쉬운 형태로 가공
         items = []
         for h in hits:
             p = h.get("policy") or {}
@@ -221,75 +218,91 @@ def recommend_policies(request):
                 "reason_snippet": (h.get("reason_snippet") or "")[:200],
             })
 
-        # --- ✅ MLflow: 개발/샘플링 로깅 ---
-        if MLFLOW_ENABLED and random.random() < MLFLOW_SAMPLE_RATE:
-            mlflow.set_experiment(MLFLOW_EXPERIMENT)
-
-            with mlflow.start_run(run_name=f"online_topk{topk}"):
-
-                # -------------------------
-                # params (비교 조건)
-                # -------------------------
-                mlflow.log_param("embedding_model", "models/gemini-embedding-001")
-                mlflow.log_param("index", "vector_index_v2")
-                mlflow.log_param("path", "embedding_gemini_v2")
-                mlflow.log_param("numCandidates", 300)
-                mlflow.log_param("limit_before_group", 80)
-                mlflow.log_param("topk", topk)
-                mlflow.log_param("db", DB_NAME)
-                mlflow.log_param("collection", "policy_vectors")
-
-                # ✅ prefilter 사용 여부
-                mlflow.log_param("prefilter_on", bool(prefilter))
-
-                # -------------------------
-                # 개인정보 최소화
-                # -------------------------
-                mlflow.log_param("query_hash", _hash_text(query_text))
-                mlflow.log_param("query_len", len(query_text))
-
-                # -------------------------
-                # metrics (지연/결과)
-                # -------------------------
-                mlflow.log_metric("latency_total_ms", (t3 - t0) * 1000)
-                mlflow.log_metric("latency_embed_ms", (t2 - t1) * 1000)
-                mlflow.log_metric("latency_search_ms", (t3 - t2) * 1000)
-                mlflow.log_metric("returned_k", len(items))
-                mlflow.log_metric("hits_raw_count", len(hits))
-
-                if items:
-                    mlflow.log_metric("top1_score", float(items[0]["score"]))
-
-                # -------------------------
-                # ✅ TopK 결과 artifact 저장
-                # -------------------------
-                mlflow.log_dict(
-                    {
-                        "prefilter_on": bool(prefilter),
-                        "topk": topk,
-                        "items": [
-                            {
-                                "policy_id": it["policy_id"],
-                                "name": it["name"],
-                                "score": it["score"],
-                                "region": it["region"],
-                            }
-                            for it in items
-                        ]
-                    },
-                    "retrieval_results.json"
-                )
-
-
         return JsonResponse({
             "ok": True,
-            "anon_id": anon_id,
+            # ✅ 어떤 프로필을 사용했는지 확인용으로 같이 내려주면 디버깅 쉬움
+            "used_profile": {
+                "anon_id": profile.get("anon_id"),
+                "region": profile.get("region"),
+                "age": profile.get("age"),
+                "updated_at": profile.get("updated_at"),
+            },
             "query_text": query_text,
             "items": items,
         }, json_dumps_params={"ensure_ascii": False})
 
     except Exception as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=500)
+
+    #     # --- ✅ MLflow: 개발/샘플링 로깅 ---
+    #     if MLFLOW_ENABLED and random.random() < MLFLOW_SAMPLE_RATE:
+    #         mlflow.set_experiment(MLFLOW_EXPERIMENT)
+
+    #         with mlflow.start_run(run_name=f"online_topk{topk}"):
+
+    #             # -------------------------
+    #             # params (비교 조건)
+    #             # -------------------------
+    #             mlflow.log_param("embedding_model", "models/gemini-embedding-001")
+    #             mlflow.log_param("index", "vector_index_v2")
+    #             mlflow.log_param("path", "embedding_gemini_v2")
+    #             mlflow.log_param("numCandidates", 300)
+    #             mlflow.log_param("limit_before_group", 80)
+    #             mlflow.log_param("topk", topk)
+    #             mlflow.log_param("db", DB_NAME)
+    #             mlflow.log_param("collection", "policy_vectors")
+
+    #             # ✅ prefilter 사용 여부
+    #             mlflow.log_param("prefilter_on", bool(prefilter))
+
+    #             # -------------------------
+    #             # 개인정보 최소화
+    #             # -------------------------
+    #             mlflow.log_param("query_hash", _hash_text(query_text))
+    #             mlflow.log_param("query_len", len(query_text))
+
+    #             # -------------------------
+    #             # metrics (지연/결과)
+    #             # -------------------------
+    #             mlflow.log_metric("latency_total_ms", (t3 - t0) * 1000)
+    #             mlflow.log_metric("latency_embed_ms", (t2 - t1) * 1000)
+    #             mlflow.log_metric("latency_search_ms", (t3 - t2) * 1000)
+    #             mlflow.log_metric("returned_k", len(items))
+    #             mlflow.log_metric("hits_raw_count", len(hits))
+
+    #             if items:
+    #                 mlflow.log_metric("top1_score", float(items[0]["score"]))
+
+    #             # -------------------------
+    #             # ✅ TopK 결과 artifact 저장
+    #             # -------------------------
+    #             mlflow.log_dict(
+    #                 {
+    #                     "prefilter_on": bool(prefilter),
+    #                     "topk": topk,
+    #                     "items": [
+    #                         {
+    #                             "policy_id": it["policy_id"],
+    #                             "name": it["name"],
+    #                             "score": it["score"],
+    #                             "region": it["region"],
+    #                         }
+    #                         for it in items
+    #                     ]
+    #                 },
+    #                 "retrieval_results.json"
+    #             )
+
+
+    #     return JsonResponse({
+    #         "ok": True,
+    #         "anon_id": anon_id,
+    #         "query_text": query_text,
+    #         "items": items,
+    #     }, json_dumps_params={"ensure_ascii": False})
+
+    # except Exception as e:
+    #     return JsonResponse({"ok": False, "error": str(e)}, status=500)
 
 @require_GET
 def policy_detail(request):
