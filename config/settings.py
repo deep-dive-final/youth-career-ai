@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import timedelta
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -19,6 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables from .env file
 load_dotenv(os.path.join(BASE_DIR, '.env'))
+IS_DEV = os.getenv("IS_DEV", "true").lower() == "true"
 MONGODB_URI = os.getenv("MONGODB_URI")
 YOUTH_API_KEY = os.getenv("YOUTH_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -30,6 +32,9 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
 
+# 로그인
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -37,9 +42,9 @@ AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
 SECRET_KEY = 'django-insecure-_v6n*burtg)7u-2mj7mt6!_406p29!g)e92#oy!!io^i@@5qd^'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = IS_DEV
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -56,6 +61,8 @@ INSTALLED_APPS = [
     'survey',
     'policy',
     'site_admin',
+    'search',
+    'accounts',
 ]
 
 MIDDLEWARE = [
@@ -66,7 +73,11 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
+
+# 배포를 위한 압축 및 캐싱 설정
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 ROOT_URLCONF = 'config.urls'
 
@@ -133,8 +144,33 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
+# 배포를 위해 파일이 모일 위치 정의
+# 웹 브라우저에서 접근할 때 사용하는 URL 경로
 STATIC_URL = 'static/'
 
-MLFLOW_ENABLED = True      # 개발에서만 True 권장
-MLFLOW_EXPERIMENT = "policy-retrieval-gemini"
-MLFLOW_SAMPLE_RATE = 0.1   # 10%만 기록(로그 폭발 방지)
+# 개발 중에 참고할 정적 파일들이 있는 경로 (추가 폴더가 있을 경우)
+STATICFILES_DIRS = [
+    BASE_DIR / "main\\static"
+]
+
+# collectstatic 명령 실행 시 파일이 복사되는 절대 경로 (운영 서버용)
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# ALB가 보낸 헤더를 통해 HTTPS 여부를 판단하도록 설정
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# 모든 접속을 HTTPS로 강제 (ALB 리다이렉트를 썼다면 필수는 아니지만 보안상 권장)
+SECURE_SSL_REDIRECT = not IS_DEV
+SESSION_COOKIE_SECURE = not IS_DEV
+CSRF_COOKIE_SECURE = not IS_DEV
+
+# google login 연동에 필요함
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
+
+# 인증쿠키
+AUTH_COOKIE = {
+    "ACCESS_NAME" : "ASTN",
+    "REFRESH_NAME" : "RSTN",
+    "ACCESS_EXPIRE" : timedelta(minutes=5),
+    "REFRESH_EXPIRE": timedelta(days=7)
+}

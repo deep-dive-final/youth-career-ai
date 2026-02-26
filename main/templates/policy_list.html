@@ -9,27 +9,19 @@
     <style>
       body { background-color: #f8fafc; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
       .container { padding: 20px; max-width: 600px; margin: 0 auto; }
-      
       .list-header { display: flex; align-items: center; margin-bottom: 24px; padding-top: 10px; }
       .back-btn { background: none; border: none; font-size: 24px; cursor: pointer; margin-right: 15px; }
       .list-title { font-size: 22px; font-weight: bold; color: #1a202c; margin: 0; }
-
       .policy-list-wrapper { display: flex; flex-direction: column; gap: 16px; }
-      
-      .list-card { 
-        background: white; border-radius: 20px; padding: 20px; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: pointer;
-        border: 1px solid #edf2f7;
-      }
+      .list-card { background: white; border-radius: 20px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: pointer; border: 1px solid #edf2f7; }
       .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-      .badge { 
-        background: #f0f0ff; color: #8e8ffa; padding: 4px 12px; 
-        border-radius: 50px; font-size: 11px; font-weight: bold; 
-      }
-      .d-day { 
-        background: #ff4d4d; color: white; padding: 4px 12px; 
-        border-radius: 50px; font-size: 11px; font-weight: bold; 
-      }
+      .badge { background: #f0f0ff; color: #8e8ffa; padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: bold; }
+      
+      .d-day { color: white; padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: bold; }
+      .bg-always { background-color: #48bb78 !important; } 
+      .bg-ongoing { background-color: #4299e1 !important; } 
+      .bg-closed { background-color: #ff4d4d !important; } 
+      
       .policy-title { font-size: 18px; font-weight: bold; color: #2d3748; line-height: 1.4; margin: 8px 0; }
       .policy-info { font-size: 13px; color: #a0aec0; margin-top: 10px; display: flex; justify-content: space-between; }
     </style>
@@ -41,18 +33,27 @@
         <h1 class="list-title">{{ title }}</h1>
       </div>
 
-<div class="policy-list-wrapper">
-  {% for policy in policies %}
-  <div class="list-card" onclick="location.href='/policy/?id={{ policy.policy_id }}'">
-    <h3 class="policy-title">{{ policy.policy_name }}</h3>
-    
-    <div class="policy-info">
-      <span>📅 마감일: {{ policy.dates.apply_period_end|default:"정보 없음" }}</span>
-      <span>🔥 조회수: {{ policy.view_count|default:0 }}</span>
-    </div>
-  </div>
-  {% endfor %}
-</div>
+      <div class="policy-list-wrapper">
+        {% for policy in policies %}
+        <div class="list-card" onclick="location.href='/policy/?id={{ policy.policy_id }}'">
+          <div class="card-header">
+            <span class="badge">{{ policy.category|default:"일반" }}</span>
+            
+            <span class="d-day 
+              {% if policy.d_day_label == '상시' %}bg-always
+              {% elif 'D-' in policy.d_day_label or policy.d_day_label == 'D-Day' %}bg-ongoing
+              {% else %}bg-closed{% endif %}">
+              {{ policy.d_day_label }}
+            </span>
+          </div>
+          <h3 class="policy-title">{{ policy.policy_name }}</h3>
+          <div class="policy-info">
+            <span>📅 마감일: {{ policy.dates.apply_period_end }}</span>
+            <span style="color: #ff8e8f;">🔥 조회수 {{ policy.view_count|default:0 }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
     </div>
   </body>
 </html>

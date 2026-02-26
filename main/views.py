@@ -10,13 +10,23 @@ from dotenv import load_dotenv
 import re
 from datetime import datetime
 from bson import ObjectId
+import boto3
+from django.conf import settings
+from utils.auth import login_check, get_user_name
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 GEMINI_MODEL = genai.GenerativeModel('models/gemini-2.5-flash')
 
-# 유틸리티 함수\
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+    region_name=settings.AWS_S3_REGION_NAME
+)
+
+# 유틸리티 함수
 def clean_doc_name(name):
     """서류 이름에서 괄호와 그 안의 내용을 제거 (예: '신청서(필수)' -> '신청서')"""
     if not name: return ""
@@ -31,18 +41,13 @@ def apply_steps(request):
     policy = db['policies'].find_one({"policy_id": policy_id})
     if not policy: return render(request, "index.html", {"error": "정책 없음"})
     
-    completed_docs = db['user_policy_document'].find(
-        {"user_id": "guest_user", "policy_id": policy_id}
-    )
-    
-    completed_names = []
-    for d in completed_docs:
-        name = d.get('doc_name') or d.get('document_type')
-        if name:
-            completed_names.append(name)
-            
-    print(f"DEBUG - 작성 완료된 서류들: {completed_names}") 
+    # AI 작성본 DB 조회 및 클리닝
+    completed_docs = list(db['user_policy_document'].find({"user_id": "guest_user", "policy_id": policy_id}))
+    completed_names = [clean_doc_name(d.get('doc_name') or d.get('document_type')) for d in completed_docs]
 
+    # 직접 업로드한 파일 DB 조회 및 클리닝
+    uploaded_files = list(db['user_policy_file'].find({"user_id": "guest_user", "policy_id": policy_id}))
+    
     submit_docs = policy.get('submit_documents', [])
     processed_docs = []
     
@@ -55,16 +60,23 @@ def apply_steps(request):
         is_ai_possible = any(kw in pure_name for kw in ["신청서", "동의서", "계획서", "자기소개서", "서식"]) \
                          and not any(ex in pure_name for ex in exclude_keywords)
 
-        is_completed = pure_name in completed_names
+        is_completed = any(clean_doc_name(name) == pure_name for name in completed_names)
+        
+        # 업로드된 파일 정보 찾기
+        file_info = next((f for f in uploaded_files if clean_doc_name(f.get('doc_name', '')) == pure_name), None)
+        is_uploaded = file_info is not None
+        file_url = file_info.get('file_url') if is_uploaded else "#"
 
         processed_docs.append({
             "name": raw_name,
             "is_mandatory": d.get('is_mandatory', False),
             "can_ai": is_ai_possible,
-            "is_completed": is_completed
+            "is_completed": is_completed,
+            "is_uploaded": is_uploaded,
+            "file_url": file_url  
         })
 
-    completed_count = len([d for d in processed_docs if d['is_completed']])
+    completed_count = len([d for d in processed_docs if d['is_completed'] or d['is_uploaded']])
 
     return render(request, "apply_steps.html", {
         "policy": policy, 
@@ -173,7 +185,7 @@ def get_form_fields(request):
         
         start_idx = res_text.find('{')
         end_idx = res_text.rfind('}') + 1
-        
+        \
         if start_idx != -1:
             return JsonResponse(json.loads(res_text[start_idx:end_idx]))
         
@@ -264,14 +276,126 @@ def get_saved_document(request):
     return JsonResponse({"status": "error"})
 
 
+@csrf_exempt
+def upload_to_s3(request):
+    if request.method == 'POST' and request.FILES.get('file'):
+        file = request.FILES['file']
+        policy_id = request.POST.get('id')
+        incoming_doc_name = request.POST.get('doc')
+        user_id = request.POST.get('user_id', 'guest_user')
+        
+        doc_name = clean_doc_name(incoming_doc_name) 
+        db = getMongoDbClient()
+
+        try:
+            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+            file_path = f"policy_{policy_id}/{user_id}/{doc_name}_{file.name}"
+            
+            s3_client.upload_fileobj(
+                file,
+                bucket_name,
+                file_path,
+                ExtraArgs={'ContentType': file.content_type}
+            )
+            
+            file_url = f"https://{bucket_name}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{file_path}"
+            
+            db['user_policy_file'].update_one(
+                {"policy_id": policy_id, "user_id": user_id, "doc_name": doc_name},
+                {"$set": {
+                    "policy_id": policy_id,
+                    "user_id": user_id,
+                    "doc_name": doc_name,
+                    "file_name": file.name,
+                    "file_url": file_url,
+                    "insert_at": datetime.now()
+                }},
+                upsert=True
+            )
+            
+            return JsonResponse({"status": "success", "url": file_url})
+            
+        except Exception as e:
+            print(f"S3 Upload Error: {e}")
+            return JsonResponse({"status": "error", "message": str(e)})
+
+    return JsonResponse({"status": "error", "message": "잘못된 요청입니다."})
+
+@csrf_exempt
+def get_policy_requirements(request):
+    policy_id = request.GET.get('id')
+    if not policy_id:
+        return JsonResponse({"status": "error", "message": "policy_id가 필요합니다."}, status=400)
+
+    db = getMongoDbClient()
+    policy = db['policies'].find_one({"policy_id": policy_id})
+
+    if not policy:
+        return JsonResponse({"status": "error", "message": "정책 정보를 찾을 수 없습니다."}, status=404)
+
+    context = f"""
+    [지원 요건]: {policy.get('support_content', '')}
+    [참여 대상 및 제한]: {policy.get('restricted_target', '')}
+    [기타 자격]: {policy.get('eligibility', {}).get('text', '')}
+    """
+# AI 프롬프트
+    prompt = f"""
+    당신은 정책 자격 진단 전문가입니다. 아래의 [정책 데이터]를 분석하여 신청 자격 목록을 생성하세요.
+
+    [정책 데이터]
+    {context}
+
+    [지시사항]
+    1. 사용자가 본인의 자격을 확인할 수 있는 핵심 항목을 3~5개 추출하세요.
+    2. **[중요] 나이 조건(최소~최대 연령)은 별개로 나누지 말고 "만 00세~00세"와 같이 하나의 항목으로 통합하여 작성하세요.**
+    3. 상세페이지용 'text'는 원문의 핵심 요건을 변형하지 말고 그대로(예: 대전광역시 거주자) 추출하세요.
+    4. 시뮬레이션용 'question'은 반드시 사용자에게 묻는 질문 형태(예: 현재 대전광역시에 거주하고 계신가요?)로 만드세요.
+    5. 일반 요건은 "condition", 신청 제외 대상은 "exclusion" 타입으로 분류하세요.
+    6. 결과는 반드시 아래 JSON 형식을 엄격히 지켜 답변하세요. (다른 설명은 일절 배제)
+
+{{
+  "status": "success",
+  "questions": [
+    {{
+      "type": "condition", 
+      "text": "만 18세~39세 청년",
+      "question": "현재 만 18세에서 39세 사이의 청년이신가요?"
+    }},
+    {{
+      "type": "exclusion", 
+      "text": "공무원 제외",
+      "question": "현재 공무원으로 재직 중이신가요?"
+    }}
+  ]
+}}
+"""
+
+    try:
+        response = GEMINI_MODEL.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        
+        result = json.loads(response.text.strip())
+        return JsonResponse(result)
+
+    except Exception as e:
+        print(f"🔥 자격 요건 분석 에러: {e}")
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
 
 # 공통 데이터 및 검색 함수들 
+@login_check
 def index(request):
+    print(f"로그인 여부: {request.is_authenticated}, 로그인 email: {request.email}")
+
     try:
         db = getMongoDbClient()
         collection = db['policies']
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        
+        today_str = today.strftime('%Y%m%d')
+        user_name = get_user_name(request)
+
         def get_processed_data(cursor):
             data_list = json.loads(json_util.dumps(list(cursor)))
             for item in data_list:
@@ -286,12 +410,35 @@ def index(request):
 
         return render(request, "index.html", {
             "recommended": get_processed_data(collection.find({}).limit(4)), 
-            "popular": get_processed_data(collection.find({}).sort("view_count", -1).limit(4)), 
-            "deadline": get_processed_data(collection.find({"apply_period_end": {"$ne": "99991231"}}).sort("apply_period_end", 1).limit(4))
+            "popular": get_processed_data(collection.aggregate([
+                { "$addFields": { "view_count_int": { "$toInt": "$view_count" } } },
+                { "$sort": { "view_count_int": -1 } },
+                { "$limit": 4 }
+            ])), 
+            "deadline": get_processed_data(collection.find({
+                "dates.apply_period_end": {"$gte": today_str, "$ne": "99991231"}
+            }).sort("dates.apply_period_end", 1).limit(4)),
+            "is_login": request.is_authenticated,
+            "user_name": user_name,
         })
     except Exception as e: return render(request, "index.html", {"error": str(e)})
 
-def simulate(request): return render(request, "simulate.html")
+def simulate(request):
+    policy_id = request.GET.get('id')
+    db = getMongoDbClient()
+    policy = db['policies'].find_one({"policy_id": policy_id})
+    
+    user_info = {
+        "age": 28,         
+        "region": "대전",    
+        "is_student": True  
+    }
+    
+    return render(request, "simulate.html", {
+        "policy": policy,
+        "policy_id": policy_id,
+        "user_info": json.dumps(user_info) 
+    })
 
 def policy_detail(request):
     policy_id = request.GET.get('id')
@@ -313,23 +460,48 @@ def policy_detail(request):
 
 
 def policy_list(request):
-    """데이터 가공 없이 있는 그대로 861개를 화면에 쏟아냄"""
     try:
         db = getMongoDbClient()
         collection = db['policies']
-        
-        cursor = collection.find({}) 
-        data_list = json.loads(json_util.dumps(list(cursor)))
-        
-        print(f"DEBUG: 현재 불러온 총 정책 개수 = {len(data_list)}")
+        sort_type = request.GET.get('sort', 'latest')
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_str = today.strftime('%Y%m%d')
+
+        if sort_type == 'popular':
+            pipeline = [
+                { "$addFields": { "view_count_int": { "$toInt": "$view_count" } } },
+                { "$sort": { "view_count_int": -1 } }
+            ]
+            cursor = collection.aggregate(pipeline)
+            title = "🔥 인기 정책 목록"
+        elif sort_type == 'deadline':
+            cursor = collection.find({
+                "dates.apply_period_end": {"$gte": today_str, "$ne": "99991231"}
+            }).sort("dates.apply_period_end", 1)
+            title = "⏰ 마감 임박 정책"
+        else:
+            cursor = collection.find({}).sort("inserted_at", -1)
+            title = "🌟 추천 정책"
+
+        policies = []
+        for item in cursor:
+            p = json.loads(json_util.dumps(item))
+            end_date = p.get('dates', {}).get('apply_period_end', '')
+            if end_date and end_date != "99991231":
+                try:
+                    delta = (datetime.strptime(end_date, "%Y%m%d") - today).days
+                    p['d_day_label'] = f"D-{delta}" if delta > 0 else ("D-Day" if delta == 0 else "마감")
+                except: p['d_day_label'] = "-"
+            else:
+                p['d_day_label'] = "상시"
+            policies.append(p)
 
         return render(request, "policy_list.html", {
-            "policies": data_list,
-            "title": "전체 정책 목록"
+            "policies": policies,
+            "title": title,
+            "sort": sort_type
         })
     except Exception as e:
-        import traceback
-        print(f"❌ 오류:\n{traceback.format_exc()}")
         return render(request, "index.html", {"error": str(e)})
 
 @csrf_exempt
