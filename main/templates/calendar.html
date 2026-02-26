@@ -1,0 +1,219 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>일정 캘린더 - 정책 추천 서비스</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <style>
+    body { background-color: #f8fafc; font-family: 'Pretendard', sans-serif; margin: 0; }
+    .container { max-width: 480px; margin: 0 auto; padding: 20px; }
+    
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .calendar-day-header {
+      text-align: center;
+      font-size: 12px;
+      color: #a0aec0;
+      padding: 8px 0;
+    }
+    .calendar-day {
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: white;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      font-size: 14px;
+      border: 2px solid transparent;
+    }
+    .calendar-day:hover { border-color: #7ec4cf; }
+    .calendar-day.today { background: linear-gradient(to bottom right, #a8e6cf, #7ec4cf); color: white; font-weight: bold; }
+    .calendar-day.selected { border-color: #8e8ffa; background-color: #f0f0ff; }
+    
+    .calendar-day.has-event::after {
+      content: '';
+      position: absolute;
+      bottom: 6px;
+      width: 4px;
+      height: 4px;
+      background: #ff7eb9;
+      border-radius: 50%;
+    }
+    .calendar-day.today.has-event::after { background: white; }
+    .calendar-day.disabled { color: #cbd5e0; cursor: default; }
+
+    .policy-card {
+      background: white;
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 12px;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+      transition: transform 0.2s;
+    }
+    .policy-card:active { transform: scale(0.98); }
+    .tag-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .tag { padding: 4px 12px; border-radius: 50px; font-size: 11px; color: white; }
+    .tag-cat { background: linear-gradient(to right, #a8e6cf, #7ec4cf); }
+    .tag-dday { background: #ff7eb9; }
+    .policy-name { margin: 0; font-size: 15px; font-weight: 700; color: #2d3748; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header" style="padding: 20px 0;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <button class="btn-icon" onclick="history.back()" style="background:none; border:none; cursor:pointer;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </button>
+        <h2 style="margin: 0; font-size: 18px;">일정 캘린더</h2>
+        <button class="btn-icon" onclick="goToToday()" style="background:none; border:none; cursor:pointer;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        </button>
+      </div>
+    </div>
+
+    <div style="padding-bottom: 24px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+        <button onclick="changeMonth(-1)" style="width: 40px; height: 40px; border-radius: 50%; background: white; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <h3 id="currentMonth" style="margin: 0; font-size: 18px; font-weight: 800;"></h3>
+        <button onclick="changeMonth(1)" style="width: 40px; height: 40px; border-radius: 50%; background: white; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.05); cursor: pointer;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+      </div>
+
+      <div class="calendar-grid" id="calendar"></div>
+
+      <div style="margin-top: 32px;">
+        <h3 style="font-size: 16px; margin-bottom: 16px;" id="list-title">📅 예정된 일정</h3>
+        <div id="eventsList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const rawData = "{{ events_json|escapejs }}";
+    let realData = [];
+    try {
+        realData = JSON.parse(rawData || '[]');
+    } catch (e) {
+        console.error("Data error:", e);
+    }
+
+    let currentDate = new Date();
+    const today = new Date();
+    let selectedDateStr = null;
+
+    function renderCalendar() {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      document.getElementById('currentMonth').textContent = `${year}년 ${month + 1}월`;
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const lastDate = new Date(year, month + 1, 0).getDate();
+      const calendar = document.getElementById('calendar');
+      
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      let html = days.map(day => `<div class="calendar-day-header">${day}</div>`).join('');
+
+      for (let i = 0; i < firstDay; i++) html += '<div class="calendar-day disabled"></div>';
+
+      for (let day = 1; day <= lastDate; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const hasEvent = realData.some(e => e.date === dateStr);
+        const isToday = new Date(year, month, day).toDateString() === today.toDateString();
+        const isSelected = dateStr === selectedDateStr;
+
+        html += `
+          <div class="calendar-day ${isToday ? 'today' : ''} ${hasEvent ? 'has-event' : ''} ${isSelected ? 'selected' : ''}" 
+               onclick="selectDate('${dateStr}')">
+            ${day}
+          </div>
+        `;
+      }
+      calendar.innerHTML = html;
+    }
+
+    function selectDate(dateStr) {
+      selectedDateStr = dateStr;
+      renderCalendar(); 
+
+      const filtered = realData.filter(e => e.date === dateStr);
+      const eventsList = document.getElementById('eventsList');
+      const listTitle = document.getElementById('list-title');
+
+      listTitle.textContent = `📅 ${dateStr} 마감 일정`;
+
+      if (filtered.length === 0) {
+        eventsList.innerHTML = `<p style="text-align:center; color:#a0aec0; padding:20px;">일정이 없습니다.</p>`;
+        return;
+      }
+
+      eventsList.innerHTML = filtered.map(p => `
+        <a href="/policy/?id=${p.id}" class="policy-card">
+          <div class="tag-row">
+            <span class="tag tag-cat">${p.cat}</span>
+            <span class="tag tag-dday">${p.dday}</span>
+          </div>
+          <h3 class="policy-name">${p.name}</h3>
+        </a>
+      `).join('');
+    }
+
+    function renderUpcomingEvents() {
+        const eventsList = document.getElementById('eventsList');
+        const upcoming = realData
+            .filter(e => new Date(e.date) >= today.setHours(0,0,0,0))
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .slice(0, 5);
+
+        if (upcoming.length === 0) {
+            eventsList.innerHTML = `<p style="text-align:center; color:#a0aec0; padding:20px;">예정된 마감 일정이 없습니다.</p>`;
+            return;
+        }
+
+        eventsList.innerHTML = upcoming.map(p => `
+            <a href="/policy/?id=${p.id}" class="policy-card">
+              <div style="font-size:11px; color:#a0aec0; margin-bottom:5px;">마감일: ${p.date}</div>
+              <div class="tag-row">
+                <span class="tag tag-cat">${p.cat}</span>
+                <span class="tag tag-dday">${p.dday}</span>
+              </div>
+              <h3 class="policy-name">${p.name}</h3>
+            </a>
+        `).join('');
+    }
+
+    function changeMonth(delta) {
+      currentDate.setMonth(currentDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    function goToToday() {
+      currentDate = new Date();
+      selectedDateStr = null;
+      renderCalendar();
+      renderUpcomingEvents();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      renderCalendar();
+      renderUpcomingEvents();
+    });
+  </script>
+</body>
+</html>

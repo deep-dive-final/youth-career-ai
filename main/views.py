@@ -504,6 +504,64 @@ def policy_list(request):
     except Exception as e:
         return render(request, "index.html", {"error": str(e)})
 
+def calendar_view(request):
+    try:
+        db = getMongoDbClient()
+        collection = db['policies']
+        
+        policies_cursor = collection.find({
+            "dates.apply_period_type": {"$ne": "상시"},
+            "dates.apply_period": {"$regex": "~"}
+        })
+        
+        calendar_events = []
+        seen_ids = set()
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        current_month = today.month
+        current_year = today.year
+
+        for p in policies_cursor:
+            pid = str(p.get('policy_id'))
+            if pid in seen_ids: continue
+
+            apply_period = str(p.get('dates', {}).get('apply_period', ''))
+            if "상시" in apply_period: continue
+
+            import re
+            match = re.search(r'~\s*(\d{8})(?!.*\d{8})', apply_period)
+            
+            if match:
+                end_date = match.group(1)
+                try:
+                    formatted_date = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:8]}"
+                    end_dt = datetime.strptime(end_date, "%Y%m%d")
+                    delta = (end_dt - today).days
+            
+                    if delta > 0: dday_label = f"D-{delta}"
+                    elif delta == 0: dday_label = "D-Day"
+                    else: dday_label = "마감됨"
+
+                    calendar_events.append({
+                        "id": pid,
+                        "name": p.get('policy_name'),
+                        "date": formatted_date,
+                        "cat": p.get('category', '일반'),
+                        "dday": dday_label,
+                        "is_current_month": (end_dt.year == current_year and end_dt.month == current_month)
+                    })
+                    seen_ids.add(pid)
+                except: continue
+        this_month_count = len([e for e in calendar_events if e.get('is_current_month')])
+        events_json = json.dumps(calendar_events, ensure_ascii=False)
+        
+        return render(request, "calendar.html", {
+            "events_json": events_json,
+            "total_count": this_month_count 
+        })
+    except Exception as e:
+        print(f"Calendar Error: {e}") 
+        return render(request, "calendar.html", {"events_json": "[]", "total_count": 0})
+
 @csrf_exempt
 def getPolicyData(request):
     try:
