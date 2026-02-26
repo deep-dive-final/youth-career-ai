@@ -12,7 +12,7 @@ from datetime import datetime
 from bson import ObjectId
 import boto3
 from django.conf import settings
-from utils.auth import login_check, get_user_name
+from utils.auth import login_check
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
@@ -335,7 +335,7 @@ def get_policy_requirements(request):
 
     context = f"""
     [지원 요건]: {policy.get('support_content', '')}
-    [참여 대상 및 제한]: {policy.get('restricted_target', '')}
+    [참여 대상 및 제한]: {policy.get('participate_target', '')}
     [기타 자격]: {policy.get('eligibility', {}).get('text', '')}
     """
 # AI 프롬프트
@@ -393,9 +393,7 @@ def index(request):
         db = getMongoDbClient()
         collection = db['policies']
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_str = today.strftime('%Y%m%d')
-        user_name = get_user_name(request)
-
+        
         def get_processed_data(cursor):
             data_list = json.loads(json_util.dumps(list(cursor)))
             for item in data_list:
@@ -408,16 +406,12 @@ def index(request):
                 else: item['d_day_label'] = "상시"
             return data_list
 
+        user_name = request.user_name if request.is_authenticated else "게스트"
+
         return render(request, "index.html", {
             "recommended": get_processed_data(collection.find({}).limit(4)), 
-            "popular": get_processed_data(collection.aggregate([
-                { "$addFields": { "view_count_int": { "$toInt": "$view_count" } } },
-                { "$sort": { "view_count_int": -1 } },
-                { "$limit": 4 }
-            ])), 
-            "deadline": get_processed_data(collection.find({
-                "dates.apply_period_end": {"$gte": today_str, "$ne": "99991231"}
-            }).sort("dates.apply_period_end", 1).limit(4)),
+            "popular": get_processed_data(collection.find({}).sort("view_count", -1).limit(4)), 
+            "deadline": get_processed_data(collection.find({"apply_period_end": {"$ne": "99991231"}}).sort("apply_period_end", 1).limit(4)),
             "is_login": request.is_authenticated,
             "user_name": user_name,
         })
@@ -460,48 +454,23 @@ def policy_detail(request):
 
 
 def policy_list(request):
+    """데이터 가공 없이 있는 그대로 861개를 화면에 쏟아냄"""
     try:
         db = getMongoDbClient()
         collection = db['policies']
-        sort_type = request.GET.get('sort', 'latest')
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_str = today.strftime('%Y%m%d')
-
-        if sort_type == 'popular':
-            pipeline = [
-                { "$addFields": { "view_count_int": { "$toInt": "$view_count" } } },
-                { "$sort": { "view_count_int": -1 } }
-            ]
-            cursor = collection.aggregate(pipeline)
-            title = "🔥 인기 정책 목록"
-        elif sort_type == 'deadline':
-            cursor = collection.find({
-                "dates.apply_period_end": {"$gte": today_str, "$ne": "99991231"}
-            }).sort("dates.apply_period_end", 1)
-            title = "⏰ 마감 임박 정책"
-        else:
-            cursor = collection.find({}).sort("inserted_at", -1)
-            title = "🌟 추천 정책"
-
-        policies = []
-        for item in cursor:
-            p = json.loads(json_util.dumps(item))
-            end_date = p.get('dates', {}).get('apply_period_end', '')
-            if end_date and end_date != "99991231":
-                try:
-                    delta = (datetime.strptime(end_date, "%Y%m%d") - today).days
-                    p['d_day_label'] = f"D-{delta}" if delta > 0 else ("D-Day" if delta == 0 else "마감")
-                except: p['d_day_label'] = "-"
-            else:
-                p['d_day_label'] = "상시"
-            policies.append(p)
+        
+        cursor = collection.find({}) 
+        data_list = json.loads(json_util.dumps(list(cursor)))
+        
+        print(f"DEBUG: 현재 불러온 총 정책 개수 = {len(data_list)}")
 
         return render(request, "policy_list.html", {
-            "policies": policies,
-            "title": title,
-            "sort": sort_type
+            "policies": data_list,
+            "title": "전체 정책 목록"
         })
     except Exception as e:
+        import traceback
+        print(f"❌ 오류:\n{traceback.format_exc()}")
         return render(request, "index.html", {"error": str(e)})
 
 def calendar_view(request):
