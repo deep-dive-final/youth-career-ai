@@ -12,3 +12,4 @@ numpy
 pyjwt
 openai
 mlflow
+tavily
