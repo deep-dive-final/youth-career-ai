@@ -188,7 +188,7 @@ def recommend_policies(request):
         if not profile:
             return JsonResponse({"ok": False, "error": "설문 정보가 없어요."}, status=400)
 
-        topk = int(request.GET.get("topk", 5))
+        topk = int(request.GET.get("topk", 10))
 
         t0 = time.perf_counter()
 
