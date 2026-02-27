@@ -72,26 +72,58 @@ def embed_query_gemini(text: str) -> list[float]:
     emb = result["embedding"]
     return emb
 
-def vector_search_policies(db, query_vec: list[float], topk: int = 10):
+def build_prefilter_region_only(profile: dict) -> dict | None:
     """
-    policy_vectors.embedding_gemini 대상으로 벡터검색 후
-    policy_id 기준으로 group해서 TopK 정책을 반환
+    MongoDB $vectorSearch.filter용 region 조건만 생성
+    - 사용자가 지역 선택: [region, "전국"] 허용
+    - region이 비었거나 "전국": 필터 없음 (None)
     """
+    region = (profile.get("region") or "").strip()
+
+    if region and region != "전국":
+        return {"metadata.region": {"$in": [region, "전국"]}}
+
+    return None
+
+def vector_search_policies(
+    db,
+    query_vec: list[float],
+    topk: int = 10,
+    prefilter: dict | None = None,
+    numCandidates: int = 300,
+    limit_chunks: int = 200,   # 웹에서는 조금 넉넉히 (0개 방지에 도움)
+    snippet_len: int = 200,
+):
     if len(query_vec) != 3072:
         raise ValueError(f"Gemini embedding dim mismatch: {len(query_vec)} (expected 3072)")
 
+    stage = {
+        "$vectorSearch": {
+            "index": "vector_index_v2",
+            "path": "embedding_gemini_v3",
+            "queryVector": query_vec,
+            "numCandidates": numCandidates,
+            "limit": limit_chunks,
+        }
+    }
+    if prefilter:
+        stage["$vectorSearch"]["filter"] = prefilter
+
     pipeline = [
-        {
-            "$vectorSearch": {
-                "index": "vector_index_v2",   # ✅ Atlas 인덱스 이름
-                "path": "embedding_gemini_v2",
-                "queryVector": query_vec,
-                "numCandidates": 300,
-                "limit": 80
-            }
-        },
+        stage,
         {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
+
+        # ✅ 핵심: sort 전에 큰 텍스트를 잘라서 메모리/성능 안정화
+        {"$project": {
+            "policy_id": 1,
+            "chunk_id": 1,
+            "metadata": 1,
+            "score": 1,
+            "content_chunk": {"$substrCP": ["$content_chunk_v3", 0, snippet_len]},
+        }},
+
         {"$sort": {"score": -1}},
+
         {"$group": {
             "_id": "$policy_id",
             "bestScore": {"$first": "$score"},
@@ -102,6 +134,8 @@ def vector_search_policies(db, query_vec: list[float], topk: int = 10):
         {"$sort": {"bestScore": -1}},
         {"$limit": topk},
 
+        # (선택) detail 페이지용 lookup 유지하고 싶으면 남기고,
+        # 응답 가볍게 하려면 lookup은 API에서 빼는 걸 추천
         {"$lookup": {
             "from": "policies",
             "localField": "_id",
@@ -109,7 +143,6 @@ def vector_search_policies(db, query_vec: list[float], topk: int = 10):
             "as": "policy"
         }},
         {"$unwind": {"path": "$policy", "preserveNullAndEmptyArrays": True}},
-
         {"$project": {
             "_id": 0,
             "policy_id": "$_id",
@@ -121,7 +154,6 @@ def vector_search_policies(db, query_vec: list[float], topk: int = 10):
         }},
     ]
 
-    return list(db.policy_vectors.aggregate(pipeline))
-
+    return list(db.policy_vectors.aggregate(pipeline, allowDiskUse=True))
 
 
