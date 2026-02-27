@@ -11,3 +11,5 @@ whitenoise
 numpy
 pyjwt
 openai
+mlflow
+tavily-python
