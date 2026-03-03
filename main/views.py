@@ -383,39 +383,60 @@ def get_policy_requirements(request):
         print(f"🔥 자격 요건 분석 에러: {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
+def get_processed_data(cursor, today_dt):
+    """DB 데이터를 가공하여 D-Day 라벨을 추가하는 유틸리티 함수"""
+    data_list = json.loads(json_util.dumps(list(cursor)))
+    for item in data_list:
+        if '_id' in item and '$oid' in item['_id']:
+            item['policy_id'] = item['_id']['$oid']
+        
+        end_date_str = item.get('dates', {}).get('apply_period_end', '')
+        if end_date_str and end_date_str != "99991231":
+            try:
+                target_dt = datetime.strptime(end_date_str, "%Y%m%d")
+                delta = (target_dt - today_dt).days
+                if delta > 0: item['d_day_label'] = f"D-{delta}"
+                elif delta == 0: item['d_day_label'] = "D-Day"
+                else: item['d_day_label'] = "마감"
+            except: item['d_day_label'] = "-"
+        else:
+            item['d_day_label'] = "상시"
+    return data_list
 
-# 공통 데이터 및 검색 함수들 
 @login_check
 def index(request):
-    print(f"로그인 여부: {request.is_authenticated}, 로그인 email: {request.email}")
-
     try:
         db = getMongoDbClient()
         collection = db['policies']
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        def get_processed_data(cursor):
-            data_list = json.loads(json_util.dumps(list(cursor)))
-            for item in data_list:
-                end_date_str = item.get('dates', {}).get('apply_period_end', '')
-                if end_date_str and end_date_str != "99991231":
-                    try:
-                        delta = (datetime.strptime(end_date_str, "%Y%m%d") - today).days
-                        item['d_day_label'] = f"D-{delta}" if delta > 0 else ("D-Day" if delta == 0 else "마감")
-                    except: item['d_day_label'] = "-"
-                else: item['d_day_label'] = "상시"
-            return data_list
+        today_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_str = today_dt.strftime("%Y%m%d")
 
-        user_name = request.user_name if request.is_authenticated else "게스트"
+        rec_cursor = collection.find({}).sort("_id", -1).limit(4)
+        recommended_data = get_processed_data(rec_cursor, today_dt)
 
+        cursor = collection.find({}) 
+        data_list = get_processed_data(cursor, today_dt)
+
+        popular_all = [item for item in data_list if item.get('d_day_label') != "마감"]
+        popular_all.sort(key=lambda x: int(x.get('view_count', 0) or 0), reverse=True)
+        popular_data = popular_all[:4]
+
+        deadline_query = {"dates.apply_period_end": {"$gte": today_str, "$ne": "99991231"}}
+        deadline_cursor = collection.find(deadline_query).sort("dates.apply_period_end", 1).limit(4)
+        deadline_data = get_processed_data(deadline_cursor, today_dt)
+
+        user_name = getattr(request, 'user_name', '게스트')
         return render(request, "index.html", {
-            "recommended": get_processed_data(collection.find({}).limit(4)), 
-            "popular": get_processed_data(collection.find({}).sort("view_count", -1).limit(4)), 
-            "deadline": get_processed_data(collection.find({"apply_period_end": {"$ne": "99991231"}}).sort("apply_period_end", 1).limit(4)),
+            "recommended": recommended_data,
+            "popular": popular_data,
+            "deadline": deadline_data,
             "is_login": request.is_authenticated,
             "user_name": user_name,
         })
-    except Exception as e: return render(request, "index.html", {"error": str(e)})
+    except Exception as e:
+        print(f"Index Error: {e}")
+        return render(request, "index.html", {"error": str(e)})
+
 
 def simulate(request):
     policy_id = request.GET.get('id')
@@ -452,26 +473,64 @@ def policy_detail(request):
         "link": policy.get('application_url') or policy.get('reference_url1') or "#"
     })
 
-
 def policy_list(request):
-    """데이터 가공 없이 있는 그대로 861개를 화면에 쏟아냄"""
     try:
         db = getMongoDbClient()
         collection = db['policies']
         
-        cursor = collection.find({}) 
-        data_list = json.loads(json_util.dumps(list(cursor)))
-        
-        print(f"DEBUG: 현재 불러온 총 정책 개수 = {len(data_list)}")
+        sort_type = request.GET.get('sort', 'latest')
+        today_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_str = today_dt.strftime("%Y%m%d")
 
+        query_filter = {}
+        sort_condition = [("_id", -1)]
+
+        # 1. 인기순 정렬 로직
+        if sort_type == 'popular':
+            # 데이터가 문자열일 경우를 대비해 일단 가져온 후 파이썬에서 정렬하는 것이 가장 안전합니다.
+            cursor = collection.find(query_filter)
+            data_list = json.loads(json_util.dumps(list(cursor)))
+            # 조회수를 숫자로 변환하여 내림차순 정렬
+            data_list.sort(key=lambda x: int(x.get('view_count', 0)), reverse=True)
+            
+        # 2. 마감 임박순 정렬 로직
+        elif sort_type == 'deadline':
+            # 오늘 날짜보다 크거나 같고, 상시(99991231)가 아닌 것만 필터링
+            query_filter = {
+                "dates.apply_period_end": {
+                    "$gte": today_str, 
+                    "$ne": "99991231"
+                }
+            }
+            sort_condition = [("dates.apply_period_end", 1)] # 가까운 날짜순
+            cursor = collection.find(query_filter).sort(sort_condition)
+            data_list = json.loads(json_util.dumps(list(cursor)))
+
+        else: # 최신순(기본)
+            cursor = collection.find(query_filter).sort(sort_condition)
+            data_list = json.loads(json_util.dumps(list(cursor)))
+
+        # 3. D-Day 라벨 생성 (HTML에서 사용)
+        for item in data_list:
+            end_date_str = item.get('dates', {}).get('apply_period_end', '')
+            if end_date_str and end_date_str != "99991231":
+                try:
+                    target_dt = datetime.strptime(end_date_str, "%Y%m%d")
+                    delta = (target_dt - today_dt).days
+                    item['d_day_label'] = f"D-{delta}" if delta > 0 else ("D-Day" if delta == 0 else "마감")
+                except: item['d_day_label'] = "-"
+            else: item['d_day_label'] = "상시"
+
+        titles = {"popular": "인기 정책", "deadline": "마감 임박 정책", "latest": "전체 정책 목록"}
         return render(request, "policy_list.html", {
-            "policies": data_list,
-            "title": "전체 정책 목록"
+            "policies": data_list[:100], # 너무 많으면 로딩이 느리니 적당히 끊어줍니다.
+            "title": titles.get(sort_type, "정책 목록")
         })
+
     except Exception as e:
-        import traceback
-        print(f"❌ 오류:\n{traceback.format_exc()}")
         return render(request, "index.html", {"error": str(e)})
+    
+
 
 def calendar_view(request):
     try:

@@ -40,11 +40,11 @@
             <span class="badge">{{ policy.category|default:"일반" }}</span>
             
             <span class="d-day 
-              {% if policy.d_day_label == '상시' %}bg-always
-              {% elif 'D-' in policy.d_day_label or policy.d_day_label == 'D-Day' %}bg-ongoing
-              {% else %}bg-closed{% endif %}">
-              {{ policy.d_day_label }}
-            </span>
+  {% if policy.d_day_label == '상시' %}bg-always
+  {% elif 'D-' in policy.d_day_label or policy.d_day_label == 'D-Day' %}bg-ongoing
+  {% else %}bg-closed{% endif %}">
+  {{ policy.d_day_label }}
+</span>
           </div>
           <h3 class="policy-title">{{ policy.policy_name }}</h3>
           <div class="policy-info">
