@@ -15,6 +15,9 @@ from pymongo import MongoClient
 from pathlib import Path
 from bson import ObjectId
 
+from utils.cookie import get_cookie
+from utils.jwt import decode_access_token, TokenError
+
 # Create your views here.
 
 # -------------------
@@ -39,6 +42,9 @@ mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 def get_db():
     return MongoClient(MONGODB_URI)[DB_NAME]
 
+# --------------------------------------------------
+# 사용자 식별 (JWT 쿠키 로그인 우선, 아니면 anon_id)
+# --------------------------------------------------
 def get_anon_id(request):
     """
     로그인 없을 때 사용자 구분용 ID (세션 기반)
@@ -48,6 +54,41 @@ def get_anon_id(request):
         anon_id = str(uuid.uuid4())
         request.session["anon_id"] = anon_id
     return anon_id
+
+def get_login_user_id_from_cookie(request):
+    """
+    JWT access 토큰(쿠키)에서 payload['sub'](user_id)를 꺼냄
+    - 로그인 상태면 sub가 ObjectId 문자열로 들어있음(현재 jwt.py 기준)
+    """
+    access = get_cookie(request, settings.AUTH_COOKIE["ACCESS_NAME"])
+    if not access:
+        return None
+
+    try:
+        payload = decode_access_token(access)
+        return payload.get("sub")
+    except TokenError:
+        return None
+
+def get_profile_filter(request):
+    """
+    로그인 O  -> user_id(ObjectId) 기준
+    로그인 X  -> anon_id(session) 기준
+    """
+    user_id = get_login_user_id_from_cookie(request)
+    if user_id:
+        try:
+            return {"user_id": ObjectId(str(user_id))}
+        except Exception:
+            # 혹시 ObjectId 문자열이 아닐 경우(거의 없음)
+            return {"user_id": str(user_id)}
+
+    return {"anon_id": get_anon_id(request)}
+
+
+def _hash_text(s: str) -> str:
+    return hashlib.sha256((s or "").encode("utf-8")).hexdigest()[:12]
+
 
 # -------------------
 # 기존 화면 렌더링
@@ -60,13 +101,13 @@ def result(request):
 
 
 # -------------------
-# 상세정보 페이지 연결
+# 정책 상세 페이지
 # -------------------
 @require_GET
 def policy_detail(request):
     """
     GET /policy/detail/?id=...
-    - survey-result에서 넘어온 policy_id로 정책 상세를 조회해서 policy-detail.html 렌더
+    - policies 컬렉션에서 policy_id로 정책 상세 조회
     """
     policy_id = request.GET.get("id")
     if not policy_id:
@@ -74,36 +115,33 @@ def policy_detail(request):
 
     db = get_db()
 
-    # 1) policies 컬렉션의 _id가 ObjectId일 수도 있고, 문자열일 수도 있어서 둘 다 대응
-    policy = None
+    # ✅ policy_id 필드로 조회 (기본)
+    policy = db.policies.find_one({"policy_id": policy_id})
 
-    # (A) 먼저 _id가 문자열로 저장된 경우
-    policy = db.policies.find_one({"_id": policy_id})
+    # (선택) 혹시 _id로 넘어오는 경우도 대비
     if not policy:
-        # (B) _id가 ObjectId인 경우
-        try:
-            policy = db.policies.find_one({"_id": ObjectId(policy_id)})
-        except Exception:
-            policy = None
-
-    # (C) 혹시 policies 쪽이 policy_id 필드를 따로 쓰는 경우까지 대비
-    if not policy:
-        policy = db.policies.find_one({"policy_id": policy_id})
+        policy = db.policies.find_one({"_id": policy_id})
+        if not policy:
+            try:
+                policy = db.policies.find_one({"_id": ObjectId(policy_id)})
+            except Exception:
+                policy = None
 
     if not policy:
         return render(request, "policy-detail.html", {"policy": None})
 
-    # 2) submit_docs: 네 DB 구조에 맞춰 컬렉션/필드명 조정 가능
-    #    (없으면 그냥 빈 리스트)
-    submit_docs = list(db.submit_documents.find({"policy_id": policy_id}))
+    # required_docs_text -> submit_docs 형태로 변환
+    submit_docs = []
+    required_docs_text = policy.get("required_docs_text")
+    if required_docs_text:
+        lines = [line.strip() for line in required_docs_text.split("\n") if line.strip()]
+        submit_docs = [{"document_name": line} for line in lines]
 
-    # 3) template에서 쓰는 변수들 구성
     context = {
         "policy": policy,
         "submit_docs": submit_docs,
-        # 아래 3개는 policy-detail.html이 기대하는 키라서 맞춰줌
         "age_text": policy.get("age_text") or policy.get("age") or None,
-        "target_text": policy.get("target_text") or policy.get("target") or None,
+        "target_text": policy.get("target_text") or policy.get("support_content") or None,
         "apply_period": policy.get("apply_period") or None,
         "link": policy.get("homepage") or policy.get("link") or policy.get("url") or None,
     }
@@ -120,12 +158,13 @@ def save_survey_answers(request):
         payload = json.loads(request.body.decode("utf-8"))
         answers = payload.get("answers", {})
 
-        anon_id = get_anon_id(request)
+        db = get_db()
+        profile_filter = get_profile_filter(request)
 
         doc = {
-            "anon_id": anon_id,
+            **profile_filter,  # ✅ user_id 또는 anon_id가 들어감
             "age": answers.get("1"),
-            "purpose": answers.get("2"),
+            "purpose": answers.get("2"),  
             "region": answers.get("3"),
             "education_level": answers.get("4"),
             "education_status": answers.get("5"),
@@ -134,38 +173,33 @@ def save_survey_answers(request):
             "updated_at": datetime.now(timezone.utc),
         }
 
-
-        db = get_db()
-
-        # ✅ 연결 확인 (콘솔 로그)
+        # ✅ 연결 확인 로그
         ping = db.client.admin.command("ping")
         print("✅ Mongo ping:", ping)
-        print("✅ Using DB:", db.name, "Collection: user_profiles", "anon_id:", anon_id)
+        print("✅ user_profiles filter:", profile_filter)
 
-        # ✅ upsert 수행 + 결과 확인
         result = db.user_profiles.update_one(
-            {"anon_id": anon_id},
-            {
-                "$set": doc,
-                "$setOnInsert": {"created_at": datetime.now(timezone.utc)},
-            },
+            profile_filter,
+            {"$set": doc, "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
             upsert=True,
         )
 
-        print("✅ matched:", result.matched_count, "✅ upserted_id:", result.upserted_id)
-
-        # ✅ 프론트에서도 바로 확인 가능하게 응답 강화
-        return JsonResponse({
-            "ok": True,
-            "db": db.name,
-            "collection": "user_profiles",
-            "matched": result.matched_count,
-            "upserted": bool(result.upserted_id),
-            "anon_id": anon_id,
-        })
+        return JsonResponse(
+            {
+                "ok": True,
+                "db": db.name,
+                "collection": "user_profiles",
+                "matched": result.matched_count,
+                "upserted": bool(result.upserted_id),
+                "profile_key": "user_id" if "user_id" in profile_filter else "anon_id",
+                "profile_value": str(
+                    profile_filter.get("user_id") or profile_filter.get("anon_id")
+                ),
+            },
+            json_dumps_params={"ensure_ascii": False},
+        )
 
     except Exception as e:
-        # ✅ 에러를 프론트에서 바로 볼 수 있게
         print("❌ save_survey_answers error:", repr(e))
         return JsonResponse({"ok": False, "error": str(e)}, status=500)
 
@@ -179,11 +213,11 @@ def _hash_text(s: str) -> str:
 def recommend_policies(request):
     try:
         db = get_db()
+        profile_filter = get_profile_filter(request)
 
         # ✅ 가장 최근 프로필 1개 가져오기 (updated_at 우선, 없으면 created_at)
         profile = db.user_profiles.find_one(
-            {},
-            sort=[("updated_at", -1), ("created_at", -1)]
+            profile_filter, sort=[("updated_at", -1), ("created_at", -1)]
         )
         if not profile:
             return JsonResponse({"ok": False, "error": "설문 정보가 없어요."}, status=400)
@@ -191,7 +225,6 @@ def recommend_policies(request):
         topk = int(request.GET.get("topk", 10))
 
         t0 = time.perf_counter()
-
         query_text = build_query_text(profile)
         t1 = time.perf_counter()
 
@@ -205,18 +238,23 @@ def recommend_policies(request):
         items = []
         for h in hits:
             p = h.get("policy") or {}
-            items.append({
-                "policy_id": str(h.get("policy_id")),
-                "score": float(h.get("score") or 0),
-                "name": p.get("policy_name") or p.get("title") or p.get("name") or "(제목없음)",
-                "category": p.get("category") or "기타",
-                "region": p.get("region") or p.get("address") or "전국",
-                "agency": p.get("supervising_agency") or p.get("agency") or "",
-                "apply_start_date": p.get("apply_start_date"),
-                "apply_end_date": p.get("apply_end_date"),
-                "homepage": p.get("homepage") or p.get("link"),
-                "reason_snippet": (h.get("reason_snippet") or "")[:200],
-            })
+            items.append(
+                {
+                    "policy_id": str(h.get("policy_id")),
+                    "score": float(h.get("score") or 0),
+                    "name": p.get("policy_name")
+                    or p.get("title")
+                    or p.get("name")
+                    or "(제목없음)",
+                    "category": p.get("category") or "기타",
+                    "region": p.get("region") or p.get("address") or "전국",
+                    "agency": p.get("supervising_agency") or p.get("agency") or "",
+                    "apply_start_date": p.get("apply_start_date"),
+                    "apply_end_date": p.get("apply_end_date"),
+                    "homepage": p.get("homepage") or p.get("link"),
+                    "reason_snippet": (h.get("reason_snippet") or "")[:200],
+                }
+            )
 
         return JsonResponse({
             "ok": True,
@@ -233,49 +271,31 @@ def recommend_policies(request):
 
     except Exception as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=500)
+    
+    #---------------------
+    #     MLFLOW 로깅
+    #----------------------
 
-    #     # --- ✅ MLflow: 개발/샘플링 로깅 ---
-    #     if MLFLOW_ENABLED and random.random() < MLFLOW_SAMPLE_RATE:
+    #      if MLFLOW_ENABLED and random.random() < MLFLOW_SAMPLE_RATE:
     #         mlflow.set_experiment(MLFLOW_EXPERIMENT)
-
     #         with mlflow.start_run(run_name=f"online_topk{topk}"):
-
-    #             # -------------------------
-    #             # params (비교 조건)
-    #             # -------------------------
     #             mlflow.log_param("embedding_model", "models/gemini-embedding-001")
-    #             mlflow.log_param("index", "vector_index_v2")
-    #             mlflow.log_param("path", "embedding_gemini_v2")
-    #             mlflow.log_param("numCandidates", 300)
-    #             mlflow.log_param("limit_before_group", 80)
-    #             mlflow.log_param("topk", topk)
     #             mlflow.log_param("db", DB_NAME)
     #             mlflow.log_param("collection", "policy_vectors")
-
-    #             # ✅ prefilter 사용 여부
+    #             mlflow.log_param("topk", topk)
     #             mlflow.log_param("prefilter_on", bool(prefilter))
-
-    #             # -------------------------
-    #             # 개인정보 최소화
-    #             # -------------------------
     #             mlflow.log_param("query_hash", _hash_text(query_text))
     #             mlflow.log_param("query_len", len(query_text))
 
-    #             # -------------------------
-    #             # metrics (지연/결과)
-    #             # -------------------------
     #             mlflow.log_metric("latency_total_ms", (t3 - t0) * 1000)
+    #             mlflow.log_metric("latency_build_query_ms", (t1 - t0) * 1000)
     #             mlflow.log_metric("latency_embed_ms", (t2 - t1) * 1000)
     #             mlflow.log_metric("latency_search_ms", (t3 - t2) * 1000)
     #             mlflow.log_metric("returned_k", len(items))
     #             mlflow.log_metric("hits_raw_count", len(hits))
-
     #             if items:
     #                 mlflow.log_metric("top1_score", float(items[0]["score"]))
 
-    #             # -------------------------
-    #             # ✅ TopK 결과 artifact 저장
-    #             # -------------------------
     #             mlflow.log_dict(
     #                 {
     #                     "prefilter_on": bool(prefilter),
@@ -288,20 +308,30 @@ def recommend_policies(request):
     #                             "region": it["region"],
     #                         }
     #                         for it in items
-    #                     ]
+    #                     ],
     #                 },
-    #                 "retrieval_results.json"
+    #                 "retrieval_results.json",
     #             )
 
-
-    #     return JsonResponse({
-    #         "ok": True,
-    #         "anon_id": anon_id,
-    #         "query_text": query_text,
-    #         "items": items,
-    #     }, json_dumps_params={"ensure_ascii": False})
+    #     return JsonResponse(
+    #         {
+    #             "ok": True,
+    #             "used_profile": {
+    #                 "profile_key": "user_id" if profile.get("user_id") else "anon_id",
+    #                 "user_id": str(profile.get("user_id")) if profile.get("user_id") else None,
+    #                 "anon_id": profile.get("anon_id"),
+    #                 "region": profile.get("region"),
+    #                 "age": profile.get("age"),
+    #                 "updated_at": profile.get("updated_at"),
+    #             },
+    #             "query_text": query_text,
+    #             "items": items,
+    #         },
+    #         json_dumps_params={"ensure_ascii": False},
+    #     )
 
     # except Exception as e:
+    #     print("❌ recommend_policies error:", repr(e))
     #     return JsonResponse({"ok": False, "error": str(e)}, status=500)
 
 @require_GET
