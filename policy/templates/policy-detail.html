@@ -17,7 +17,7 @@
         <div style="width: 24px;"></div>
       </div>
 
-      <div style="padding: 20px 20px 120px;">
+      <div style="padding: 20px 20px 140px;">
         {% if policy %}
         <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
           <span style="display: inline-block; padding: 4px 12px; background: #a8e6cf; color: #2d3748; border-radius: 50px; font-size: 12px; font-weight: bold; margin-bottom: 12px;">{{ policy.category|default:"일자리" }}</span>
@@ -26,33 +26,60 @@
         </div>
 
         <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
-          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">✅ 신청 자격</h3>
-          <p style="font-size: 14px; color: #4a5568; margin-bottom: 15px;">
-            <strong>대상 연령:</strong> 만 {{ policy.eligibility.age_min }}세 ~ {{ policy.eligibility.age_max }}세
-          </p>
-          
-          <div style="border-top: 1px dashed #edf2f7; padding-top: 15px;">
-            <p style="font-size: 15px; font-weight: bold; color: #2d3748; margin-bottom: 10px;">📋 기타 조건 요약</p>
-            <ul id="requirement-list" style="margin: 0; padding-left: 0; list-style: none; font-size: 13px; line-height: 1.8;">
-              <li style="color: #a0aec0;">조건을 분석하고 있습니다...</li>
-            </ul>
-          </div>
+          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">🔎 정책 소개(AI 요약 보기)</h3>
+          <ul id="requirement-list" style="margin: 0; padding-left: 0; list-style: none; font-size: 13px; line-height: 1.8;">
+            <li style="color: #a0aec0;">조건을 분석하고 있습니다...</li>
+          </ul>
         </div>
 
         <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
-          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">💰 지원 내용</h3>
-          <div style="color: #4a5568; font-size: 14px; line-height: 1.7;">{{ policy.support_content|linebreaks }}</div>
+          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">📅 신청 가능 기간</h3>
+          <p style="font-size: 14px; color: #2d3748; margin: 0; font-weight: bold;">{{ apply_period_label|default:"공고문 확인" }}</p>
         </div>
 
         <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
-          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">ℹ️ 추가 정보</h3>
+          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">📌 정책 상세 정보</h3>
           <div style="margin-bottom: 16px">
-            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">신청 가능 기간</p>
-            <p style="font-size: 14px; color: #2d3748; margin: 0; font-weight: bold;">{{ apply_period|default:"상시 모집" }}</p>
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">신청 자격</p>
+            <p style="font-size: 14px; color: #2d3748; margin: 0; font-weight: bold;">{{ eligibility_age_label|default:"공고문 확인" }}</p>
           </div>
+          <div style="border-top: 1px dashed #edf2f7; padding-top: 15px;">
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 8px">지원 내용</p>
+            <div style="color: #4a5568; font-size: 14px; line-height: 1.7;">{{ policy.support_content|linebreaks }}</div>
+          </div>
+        </div>
+
+        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
+          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">🧾 신청방법 및 필요서류</h3>
+          <div style="margin-bottom: 16px;">
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 6px;">신청방법</p>
+            {% if policy.how_to_apply %}
+            <div style="color: #4a5568; font-size: 14px; line-height: 1.7;">{{ policy.how_to_apply|linebreaks }}</div>
+            {% else %}
+            <p style="font-size: 13px; color: #a0aec0; margin: 0;">신청방법 정보가 없습니다.</p>
+            {% endif %}
+          </div>
+          <div style="border-top: 1px dashed #edf2f7; padding-top: 15px;">
+            <p style="font-size: 12px; color: #a0aec0; margin-bottom: 6px;">필요서류</p>
+            {% if docs_info %}
+            <div style="color: #4a5568; font-size: 14px; line-height: 1.7;">{{ docs_info|linebreaks }}</div>
+            {% elif policy.required_docs_text %}
+            <div style="color: #4a5568; font-size: 14px; line-height: 1.7;">{{ policy.required_docs_text|linebreaks }}</div>
+            {% else %}
+            <p style="font-size: 13px; color: #a0aec0; margin: 0;">필요서류 정보가 없습니다.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 16px;">
+          <h3 style="font-size: 16px; color: #2d3748; margin: 0 0 16px 0;">🌐 공식 홈페이지</h3>
           <div>
             <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px">공식 홈페이지</p>
-            <a href="{{ link }}" target="_blank" style="font-size: 14px; color: #7ec4cf; text-decoration: none; font-weight: bold;">바로가기 (클릭) ↗</a>
+            {% if official_homepage_link %}
+            <a href="{{ official_homepage_link }}" target="_blank" style="font-size: 14px; color: #7ec4cf; text-decoration: none; font-weight: bold;">바로가기 (클릭) ↗</a>
+            {% else %}
+            <p style="font-size: 13px; color: #a0aec0; margin: 0;">공식 홈페이지 정보가 없습니다.</p>
+            {% endif %}
           </div>
         </div>
         {% else %}
@@ -65,7 +92,12 @@
 
     <div style="position: fixed; bottom: 0; left: 0; right: 0; padding: 20px; background: white; border-top: 1px solid #f1f3f5; display: flex; gap: 12px; z-index: 1000;">
       <div style="max-width: 480px; margin: 0 auto; width: 100%; display: flex; gap: 12px;">
-        <a href="/policy/apply/?id={{ policy.policy_id }}" style="flex: 1; text-align: center; background: #f1f3f5; color: #4a5568; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px;">📝 서류 준비</a>
+        {% if apply_link %}
+        <a href="{{ apply_link }}" target="_blank" style="flex: 1; text-align: center; background: #38a169; color: white; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px;">📝 신청하기</a>
+        {% else %}
+        <a href="javascript:void(0)" aria-disabled="true" style="flex: 1; text-align: center; background: #e2e8f0; color: #94a3b8; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px; cursor: not-allowed; pointer-events: none;">📝 신청하기</a>
+        {% endif %}
+        <a href="/policy/apply/?id={{ policy.policy_id }}" style="flex: 1; text-align: center; background: #f1f3f5; color: #4a5568; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px;">📂 서류 준비</a>
         <a href="/policy/simulate/?id={{ policy.policy_id }}" style="flex: 1; text-align: center; background: #8e8ffa; color: white; padding: 16px; border-radius: 16px; text-decoration: none; font-weight: bold; font-size: 15px;">🔍 자격 확인하기</a>
       </div>
     </div>

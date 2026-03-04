@@ -26,11 +26,150 @@ s3_client = boto3.client(
     region_name=settings.AWS_S3_REGION_NAME
 )
 
+URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+")
+GENERIC_TOKENS = {"", "제한없음", "기타", "무관"}
+
 # 유틸리티 함수
 def clean_doc_name(name):
     """서류 이름에서 괄호와 그 안의 내용을 제거 (예: '신청서(필수)' -> '신청서')"""
     if not name: return ""
     return re.sub(r'\(.*?\)', '', name).strip()
+
+
+def _as_clean_text(value):
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _is_url(value):
+    return bool(URL_PATTERN.search(_as_clean_text(value)))
+
+
+def _extract_first_url(text):
+    match = URL_PATTERN.search(_as_clean_text(text))
+    return match.group(0) if match else None
+
+
+def _pick_apply_link(policy):
+    application_url = _as_clean_text(policy.get("application_url"))
+    if _is_url(application_url):
+        return application_url
+    return _extract_first_url(policy.get("how_to_apply"))
+
+
+def _pick_official_homepage_link(policy):
+    for key in ("reference_url1", "reference_url2", "application_url"):
+        value = _as_clean_text(policy.get(key))
+        if _is_url(value):
+            return value
+    return None
+
+
+def _split_tokens(value):
+    if value is None:
+        return []
+
+    raw_values = value if isinstance(value, list) else [value]
+    tokens = []
+    for raw in raw_values:
+        text = str(raw)
+        for token in re.split(r"[,/\n]", text):
+            cleaned = token.strip()
+            if cleaned:
+                tokens.append(cleaned)
+    return tokens
+
+
+def _filter_informative_tokens(tokens):
+    filtered = []
+    seen = set()
+    for token in tokens:
+        normalized = token.strip()
+        if normalized in GENERIC_TOKENS:
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        filtered.append(normalized)
+    return filtered
+
+
+def _build_apply_period_label(policy):
+    dates = policy.get("dates") or {}
+
+    start = _as_clean_text(dates.get("apply_period_start"))
+    end = _as_clean_text(dates.get("apply_period_end"))
+    if start and end:
+        return f"{start} ~ {end}"
+
+    apply_period_type = _as_clean_text(dates.get("apply_period_type"))
+    if apply_period_type == "마감":
+        return "마감"
+
+    raw_period = _as_clean_text(dates.get("apply_period"))
+    if raw_period:
+        normalized = raw_period.replace("\\N", "\n")
+        parts = [line.strip() for line in normalized.splitlines() if line.strip()]
+        if parts:
+            return " / ".join(parts)
+
+    return "공고문 확인"
+
+
+def _to_positive_int(value):
+    text = _as_clean_text(value)
+    if not text:
+        return None
+
+    try:
+        number = int(float(text))
+    except (TypeError, ValueError):
+        return None
+
+    if number <= 0:
+        return None
+    return number
+
+
+def _build_eligibility_age_label(policy):
+    eligibility = policy.get("eligibility") or {}
+    age_min = _to_positive_int(eligibility.get("age_min"))
+    age_max = _to_positive_int(eligibility.get("age_max"))
+
+    if age_min is None or age_max is None:
+        return "공고문 확인"
+    return f"만 {age_min}세 ~ {age_max}세"
+
+
+def _build_requirements_context(policy):
+    support_content = _as_clean_text(policy.get("support_content"))
+    eligibility_text = _as_clean_text((policy.get("eligibility") or {}).get("text"))
+    restricted_target = _as_clean_text(policy.get("restricted_target"))
+
+    structured_map = {
+        "지역 조건": _filter_informative_tokens(_split_tokens(policy.get("region"))),
+        "직업 상태": _filter_informative_tokens(_split_tokens(policy.get("job_type"))),
+        "학력/학적 조건": _filter_informative_tokens(_split_tokens(policy.get("school_type"))),
+        "특화 요건": _filter_informative_tokens(_split_tokens(policy.get("policy_specific_type"))),
+    }
+
+    lines = [
+        f"[지원 요건]: {support_content}",
+        f"[기타 자격]: {eligibility_text}",
+        f"[신청 제외/제한]: {restricted_target}",
+    ]
+
+    structured_lines = []
+    for label, values in structured_map.items():
+        if values:
+            structured_lines.append(f"- {label}: {', '.join(values)}")
+
+    if structured_lines:
+        lines.append("[추가 구조화 조건]")
+        lines.extend(structured_lines)
+
+    return "\n".join(lines)
 
 # 페이지 렌더링 함수
 
@@ -333,11 +472,7 @@ def get_policy_requirements(request):
     if not policy:
         return JsonResponse({"status": "error", "message": "정책 정보를 찾을 수 없습니다."}, status=404)
 
-    context = f"""
-    [지원 요건]: {policy.get('support_content', '')}
-    [참여 대상 및 제한]: {policy.get('participate_target', '')}
-    [기타 자격]: {policy.get('eligibility', {}).get('text', '')}
-    """
+    context = _build_requirements_context(policy)
 # AI 프롬프트
     prompt = f"""
     당신은 정책 자격 진단 전문가입니다. 아래의 [정책 데이터]를 분석하여 신청 자격 목록을 생성하세요.
@@ -439,17 +574,22 @@ def policy_detail(request):
     db = getMongoDbClient()
     policy = db['policies'].find_one({"policy_id": policy_id})
     if not policy: return render(request, "index.html")
-    
-    start = policy.get('dates', {}).get('apply_period_start', '')
-    end = policy.get('dates', {}).get('apply_period_end', '')
-    display_period = "상시 모집" if "99991231" in end else f"{start} ~ {end}"
-    
+
+    apply_period_label = _build_apply_period_label(policy)
+    eligibility_age_label = _build_eligibility_age_label(policy)
+    apply_link = _pick_apply_link(policy)
+    official_homepage_link = _pick_official_homepage_link(policy)
+
     return render(request, "policy-detail.html", {
         "policy": policy, 
         "submit_docs": policy.get('submit_documents', []), 
-        "apply_period": display_period, 
+        "apply_period_label": apply_period_label,
+        "eligibility_age_label": eligibility_age_label,
+        "apply_period": apply_period_label,  # 기존 템플릿/호출부 호환성 유지
+        "apply_link": apply_link,
+        "official_homepage_link": official_homepage_link,
         "docs_info": policy.get('required_docs_text', ''), 
-        "link": policy.get('application_url') or policy.get('reference_url1') or "#"
+        "link": official_homepage_link,  # 기존 템플릿 변수명 호환
     })
 
 
