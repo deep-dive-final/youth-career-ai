@@ -26,8 +26,8 @@ def importData(request):
     try:
         page_num = request.GET.get('num')
         page_size = request.GET.get('size')
-        fetch_policy_data(page_num, page_size)
-        return JsonResponse({"status": "success", "data": {"count":1}}, json_dumps_params={'ensure_ascii': False})
+        insert_result = fetch_policy_data(page_num, page_size)
+        return JsonResponse({"status": "success", "data": {"count": insert_result}}, json_dumps_params={'ensure_ascii': False})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 

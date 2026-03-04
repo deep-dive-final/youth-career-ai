@@ -172,5 +172,5 @@ AUTH_COOKIE = {
     "ACCESS_NAME" : "ASTN",
     "REFRESH_NAME" : "RSTN",
     "ACCESS_EXPIRE" : timedelta(minutes=5),
-    "REFRESH_EXPIRE": timedelta(days=7)
+    "REFRESH_EXPIRE": timedelta(days=1)
 }
