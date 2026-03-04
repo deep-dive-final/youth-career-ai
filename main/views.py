@@ -503,6 +503,17 @@ def get_policy_summary(request):
     if not policy:
         return JsonResponse({"status": "error", "message": "정책 정보를 찾을 수 없습니다."}, status=404)
 
+    # ─── Lazy 캐싱: 이미 생성된 결과가 있으면 즉시 반환 ───────────────────
+    cache_col = db['policy_summary_cache']
+    cached = cache_col.find_one({"policy_id": policy_id}, {"_id": 0, "policy_id": 0,
+                                                            "generated_at": 0, "edited_at": 0,
+                                                            "is_edited": 0})
+    if cached and isinstance(cached.get("items"), list):
+        cached.setdefault("status", "success")
+        cached["meta"] = {"source": "cache"}
+        return JsonResponse(cached)
+    # ─────────────────────────────────────────────────────────────────────────
+
     context = _build_requirements_context(policy)
     prompt = f"""
     [역할 선언 - Role]
