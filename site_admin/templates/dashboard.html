@@ -65,20 +65,20 @@
 
         <!-- Tabs -->
         <div class="admin-tabs">
-          <button class="tab-btn active" onclick="switchTab('dashboard')">
+          <button class="tab-btn" onclick="switchTab('dashboard')">
             📊 대시보드
+          </button>
+          <button class="tab-btn active" onclick="switchTab('policies')">
+            📋 정책
           </button>
           <button class="tab-btn" onclick="switchTab('users')">
             👥 사용자
-          </button>
-          <button class="tab-btn" onclick="switchTab('policies')">
-            📋 정책
           </button>
         </div>
       </div>
 
       <!-- Dashboard Tab -->
-      <div id="dashboardTab" style="padding: 24px 20px">
+      <div id="dashboardTab" class="hidden" style="padding: 24px 20px">
         <!-- Stats Grid -->
         <div class="stats-grid">
           <div class="stat-card">
@@ -476,7 +476,7 @@
       </div>
 
       <!-- Policies Tab -->
-      <div id="policiesTab" class="hidden" style="padding: 24px 20px">
+      <div id="policiesTab" style="padding: 24px 20px">
         <div
           style="
             display: flex;
@@ -521,8 +521,8 @@
       </svg>
     </button>
 
-    <script src="js/data.js"></script>
-    <script src="js/main.js"></script>
+    <script src="{% static 'js/data.js' %}"></script>
+    <script src="{% static 'js/main.js' %}"></script>
     <script>
       // Mock user data
       const adminUsers = [
@@ -573,14 +573,14 @@
         if (tab === "dashboard") {
           document.getElementById("dashboardTab").classList.remove("hidden");
           document.querySelectorAll(".tab-btn")[0].classList.add("active");
-        } else if (tab === "users") {
-          document.getElementById("usersTab").classList.remove("hidden");
-          document.querySelectorAll(".tab-btn")[1].classList.add("active");
-          renderUsers(adminUsers);
         } else if (tab === "policies") {
           document.getElementById("policiesTab").classList.remove("hidden");
-          document.querySelectorAll(".tab-btn")[2].classList.add("active");
+          document.querySelectorAll(".tab-btn")[1].classList.add("active");
           renderPoliciesAdmin();
+        } else if (tab === "users") {
+          document.getElementById("usersTab").classList.remove("hidden");
+          document.querySelectorAll(".tab-btn")[2].classList.add("active");
+          renderUsers(adminUsers);
         }
       }
 
