@@ -108,11 +108,11 @@
           const listElement = document.getElementById('requirement-list');
 
           if (policyId && listElement) {
-              fetch(`/api/get_policy_requirements/?id=${policyId}`)
+              fetch(`/api/policy-summary/?id=${policyId}`)
                   .then(response => response.json())
                   .then(data => {
-                      if (data.status === 'success' && data.questions && data.questions.length > 0) {
-                          listElement.innerHTML = data.questions.map(q => {
+                      if (data.status === 'success' && data.items && data.items.length > 0) {
+                          listElement.innerHTML = data.items.map(q => {
                               if (q.type === 'exclusion') {
                                   return `<li style="margin-bottom: 8px; color: #e53e3e; font-weight: 500; display: flex; align-items: flex-start;">
                                             <span style="margin-right: 6px;">🚫</span>
