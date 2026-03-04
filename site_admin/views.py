@@ -9,6 +9,9 @@ from django.conf import settings
 from bson import ObjectId
 from utils.db import getMongoDbClient
 
+def index(request):
+    return render(request, "dashboard.html", {})
+
 def data(request):
     return render(request, "data.html", {})
 
