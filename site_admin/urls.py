@@ -3,8 +3,10 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path("", views.data_list, name="site_admin_home"),
     path("data", views.data, name="data"),
     path("list", views.data_list, name="data_list"),
+    path("dashboard", views.dashboard, name="dashboard"),
     path("api/importData", views.importData, name="importData"),
     path("api/getSearchData", views.getSearchData, name="getSearchData"),
     path("api/uploadFile", views.upload_file, name="uploadFile"),
@@ -15,4 +17,7 @@ urlpatterns = [
     path("api/chart/getArrayData", views.get_arr_data_for_chart, name="getArrayChartData"),
     path("labeling/", views.labeling, name="labeling"),
     path("api/labeling/delete-label/", views.delete_label, name="delete_label"),
+    path("summary-cache/", views.summary_cache_page, name="summary_cache_page"),
+    path("api/summary-cache/list/", views.get_summary_cache_list, name="summary_cache_list"),
+    path("api/summary-cache/update/", views.update_summary_cache, name="summary_cache_update"),
 ]

@@ -9,6 +9,9 @@ from django.conf import settings
 from bson import ObjectId
 from utils.db import getMongoDbClient
 
+def dashboard(request):
+    return render(request, "dashboard.html", {})
+
 def data(request):
     return render(request, "data.html", {})
 
@@ -23,8 +26,8 @@ def importData(request):
     try:
         page_num = request.GET.get('num')
         page_size = request.GET.get('size')
-        fetch_policy_data(page_num, page_size)
-        return JsonResponse({"status": "success", "data": {"count":1}}, json_dumps_params={'ensure_ascii': False})
+        insert_result = fetch_policy_data(page_num, page_size)
+        return JsonResponse({"status": "success", "data": {"count": insert_result}}, json_dumps_params={'ensure_ascii': False})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
@@ -258,3 +261,71 @@ def delete_label(request):
 
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+def summary_cache_page(request):
+    return render(request, "summary_cache.html", {})
+
+
+@csrf_exempt
+def get_summary_cache_list(request):
+    """policy_summary_cache 목록 조회 (검색 + 페이지네이션)"""
+    try:
+        page = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 20))
+        search = request.GET.get("search", "").strip()
+
+        db = getMongoDbClient()
+        col = db["policy_summary_cache"]
+
+        query = {}
+        if search:
+            query["policy_name"] = {"$regex": search, "$options": "i"}
+
+        total = col.count_documents(query)
+        items = list(
+            col.find(query, {"_id": 0})
+            .sort("generated_at", -1)
+            .skip((page - 1) * page_size)
+            .limit(page_size)
+        )
+
+        # datetime → str 변환
+        for item in items:
+            for key in ("generated_at", "edited_at"):
+                if item.get(key):
+                    item[key] = str(item[key])
+
+        return JsonResponse({"status": "success", "total": total, "items": items},
+                            json_dumps_params={"ensure_ascii": False})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@csrf_exempt
+def update_summary_cache(request):
+    """관리자가 수정한 items를 policy_summary_cache에 저장"""
+    if request.method != "POST":
+        return JsonResponse({"status": "error", "message": "POST only"}, status=405)
+    try:
+        from datetime import datetime
+        body = json.loads(request.body)
+        policy_id = body.get("policy_id")
+        items = body.get("items")
+
+        if not policy_id or not isinstance(items, list):
+            return JsonResponse({"status": "error", "message": "policy_id와 items가 필요합니다."}, status=400)
+
+        db = getMongoDbClient()
+        result = db["policy_summary_cache"].update_one(
+            {"policy_id": policy_id},
+            {"$set": {"items": items, "is_edited": True, "edited_at": datetime.now()}},
+            upsert=False,
+        )
+
+        if result.matched_count == 0:
+            return JsonResponse({"status": "error", "message": "캐시 항목을 찾을 수 없습니다."}, status=404)
+
+        return JsonResponse({"status": "success", "modified": result.modified_count})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)

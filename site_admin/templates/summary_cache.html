@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>요약 캐시 관리</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+
+<body style="background:#f8fafc; font-family:sans-serif;">
+
+    <nav style="background:#1e293b;padding:10px 20px;display:flex;gap:16px;align-items:center;">
+        <span style="color:#94a3b8;font-size:13px;font-weight:bold;margin-right:8px;">⚙ Admin</span>
+        <a href="/site_admin/data"
+            style="color:#94a3b8;text-decoration:none;font-size:13px;padding:4px 10px;border-radius:4px;">데이터</a>
+        <a href="/site_admin/list"
+            style="color:#94a3b8;text-decoration:none;font-size:13px;padding:4px 10px;border-radius:4px;">목록</a>
+        <a href="/site_admin/chart"
+            style="color:#94a3b8;text-decoration:none;font-size:13px;padding:4px 10px;border-radius:4px;">차트</a>
+        <a href="/site_admin/labeling/"
+            style="color:#94a3b8;text-decoration:none;font-size:13px;padding:4px 10px;border-radius:4px;">라벨링</a>
+        <a href="/site_admin/summary-cache/"
+            style="color:#e2e8f0;text-decoration:none;font-size:13px;padding:4px 10px;border-radius:4px;background:#334155;">요약
+            캐시</a>
+    </nav>
+
+    <div style="max-width:900px;margin:24px auto;padding:0 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h1 style="font-size:18px;font-weight:700;color:#1e293b;">📋 정책 요약 캐시 관리</h1>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input id="searchInput" type="text" placeholder="정책명 검색..."
+                    style="border:1px solid #cbd5e1;border-radius:6px;padding:6px 12px;font-size:13px;width:200px;"
+                    oninput="onSearch()" />
+                <span id="cacheCount" style="font-size:12px;color:#64748b;"></span>
+            </div>
+        </div>
+
+        <div id="cacheList"></div>
+
+        <!-- 페이지네이션 -->
+        <div id="pagination" style="display:flex;gap:6px;justify-content:center;margin-top:20px;"></div>
+    </div>
+
+    <!-- 토스트 -->
+    <div id="toast"
+        style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;display:none;z-index:999;">
+    </div>
+
+    <script>
+        const PAGE_SIZE = 20;
+        let currentPage = 1;
+        let searchText = '';
+        let searchTimer = null;
+
+        async function loadCache(page, search) {
+            const params = new URLSearchParams({ page, page_size: PAGE_SIZE, search: search || '' });
+            const res = await fetch(`/site_admin/api/summary-cache/list/?${params}`);
+            const data = await res.json();
+            renderList(data.items);
+            renderPagination(data.total, page);
+            document.getElementById('cacheCount').textContent = `총 ${data.total}건`;
+        }
+
+        function renderList(items) {
+            const container = document.getElementById('cacheList');
+            if (!items || items.length === 0) {
+                container.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:40px 0;">캐시 데이터가 없습니다.</p>';
+                return;
+            }
+            container.innerHTML = items.map((item, idx) => `
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+            <div>
+              <span style="font-size:14px;font-weight:600;color:#1e293b;">${item.policy_name || '(정책명 없음)'}</span>
+              ${item.is_edited ? '<span style="margin-left:8px;font-size:11px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:99px;">✏ 수동수정</span>' : ''}
+              <p style="font-size:11px;color:#94a3b8;margin-top:2px;">${item.policy_id}</p>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button onclick="saveItem('${item.policy_id}', ${idx})"
+                style="background:#3b82f6;color:white;border:none;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;">저장</button>
+              <button onclick="regenItem('${item.policy_id}')"
+                style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;">AI 재생성</button>
+            </div>
+          </div>
+          <div id="items-${idx}" style="display:flex;flex-direction:column;gap:6px;">
+            ${(item.items || []).map((card, ci) => `
+              <div style="display:flex;gap:6px;align-items:center;">
+                <select data-idx="${idx}" data-ci="${ci}" onchange="markChanged(${idx})"
+                  style="border:1px solid #e2e8f0;border-radius:4px;padding:3px 6px;font-size:12px;color:${card.type === 'exclusion' ? '#dc2626' : '#2563eb'};">
+                  <option value="condition" ${card.type === 'condition' ? 'selected' : ''}>condition</option>
+                  <option value="exclusion" ${card.type === 'exclusion' ? 'selected' : ''}>exclusion</option>
+                </select>
+                <input type="text" value="${escHtml(card.text)}" data-idx="${idx}" data-ci="${ci}" oninput="markChanged(${idx})"
+                  style="flex:1;border:1px solid #e2e8f0;border-radius:4px;padding:4px 8px;font-size:13px;" />
+                <button onclick="removeCard(${idx}, ${ci})"
+                  style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;line-height:1;">✕</button>
+              </div>
+            `).join('')}
+          </div>
+          <button onclick="addCard(${idx})"
+            style="margin-top:8px;background:none;border:1px dashed #cbd5e1;color:#64748b;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;width:100%;">+ 항목 추가</button>
+        </div>
+      `).join('');
+            // 전역에 items 데이터 저장
+            window._cacheItems = items;
+        }
+
+        function escHtml(str) {
+            return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function markChanged(idx) {
+            // 저장 버튼 스타일 강조 (선택적 시각 피드백)
+        }
+
+        function addCard(idx) {
+            const item = window._cacheItems[idx];
+            item.items = item.items || [];
+            item.items.push({ type: 'condition', text: '' });
+            renderList(window._cacheItems);
+        }
+
+        function removeCard(idx, ci) {
+            const item = window._cacheItems[idx];
+            item.items.splice(ci, 1);
+            renderList(window._cacheItems);
+        }
+
+        function collectItems(idx) {
+            const container = document.getElementById(`items-${idx}`);
+            const selects = container.querySelectorAll('select');
+            const inputs = container.querySelectorAll('input[type=text]');
+            const result = [];
+            selects.forEach((sel, i) => {
+                const text = inputs[i]?.value.trim();
+                if (text) result.push({ type: sel.value, text });
+            });
+            return result;
+        }
+
+        async function saveItem(policyId, idx) {
+            const items = collectItems(idx);
+            const res = await fetch('/site_admin/api/summary-cache/update/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+                body: JSON.stringify({ policy_id: policyId, items }),
+            });
+            const data = await res.json();
+            showToast(data.status === 'success' ? '✓ 저장 완료' : '✕ 저장 실패', data.status === 'success');
+            if (data.status === 'success') loadCache(currentPage, searchText);
+        }
+
+        async function regenItem(policyId) {
+            if (!confirm('이 정책의 요약을 AI로 재생성하시겠습니까?\n현재 수동 수정 내용이 덮어씌워집니다.')) return;
+            const res = await fetch(`/api/policy-summary/?id=${policyId}`);
+            const data = await res.json();
+            showToast(data.status === 'success' ? '✓ 재생성 완료' : '✕ 재생성 실패', data.status === 'success');
+            if (data.status === 'success') loadCache(currentPage, searchText);
+        }
+
+        function renderPagination(total, page) {
+            const totalPages = Math.ceil(total / PAGE_SIZE);
+            const nav = document.getElementById('pagination');
+            if (totalPages <= 1) { nav.innerHTML = ''; return; }
+            let html = '';
+            for (let i = 1; i <= totalPages; i++) {
+                html += `<button onclick="goPage(${i})" style="padding:4px 10px;border-radius:4px;border:1px solid ${i === page ? '#3b82f6' : '#e2e8f0'};background:${i === page ? '#3b82f6' : 'white'};color:${i === page ? 'white' : '#475569'};font-size:13px;cursor:pointer;">${i}</button>`;
+            }
+            nav.innerHTML = html;
+        }
+
+        function goPage(p) { currentPage = p; loadCache(p, searchText); }
+
+        function onSearch() {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                searchText = document.getElementById('searchInput').value.trim();
+                currentPage = 1;
+                loadCache(1, searchText);
+            }, 400);
+        }
+
+        function showToast(msg, success) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.style.background = success ? '#16a34a' : '#dc2626';
+            el.style.color = 'white';
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 2500);
+        }
+
+        function getCsrf() {
+            return document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('csrftoken='))?.split('=')[1] || '';
+        }
+
+        loadCache(1, '');
+    </script>
+</body>
+
+</html>

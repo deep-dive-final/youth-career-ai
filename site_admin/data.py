@@ -8,6 +8,9 @@ from bson import ObjectId
 # from sentence_transformers import SentenceTransformer
 # from openai import OpenAI
 import google.generativeai as genai
+import site_admin.preprocess.codes as codes
+import site_admin.preprocess.sub_categories as sub_categories
+import site_admin.preprocess.submit_document as submit_document
 
 # API 정보
 API_INFO = {
@@ -22,6 +25,8 @@ API_INFO = {
     }
   }
 }
+
+genai.configure(api_key=settings.GEMINI_API_KEY)
 
 # API에서 데이터 가져오는 함수
 @retry(
@@ -83,8 +88,6 @@ def fetch_api_data(url, param):
 def get_Embedding_gemini(original_text_list, task_type="document"):
     print("[get_Embedding_gemini] start ")
 
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-
     model_name = "models/gemini-embedding-001"
     result = genai.embed_content(
         model=model_name,
@@ -99,10 +102,11 @@ def get_Embedding_gemini(original_text_list, task_type="document"):
 def get_embeddings(api_list):
     print("[get_embeddings] start ")
 
-    original_text_list = [f"{item.get('plcyNm', '')} \n\
-{item.get('plcyExplnCn', '')} \n\
-{item.get('plcySprtCn', '')} \n\
-{item.get('addAplyQlfcCndCn', '')} ".strip() for item in api_list]
+    original_text_list = [f"정책명 : {item['plcyNm']}\n\
+지역 : [{", ".join(item['region'])}]\n\
+관심분야 : [{", ".join(item['sub_categories'])}]\n\
+정책 키워드 : {item['plcyKywdNm']} \n\
+정책 설명 : {item['plcyExplnCn']} ".strip() for item in api_list]
     
     # embedding_e5 = get_Embedding_e5(original_text_list, "passage")
     embedding_e5 = []
@@ -115,7 +119,15 @@ def set_nested_value(dic, keys, value):
     """중첩된 키 경로를 따라 값을 할당하는 보조 함수"""
     for key in keys[:-1]:
         dic = dic.setdefault(key, {})
-    dic[keys[-1]] = value
+
+    key = keys[-1]
+    if (key in ["selection_count", "min_amt", "max_amt", "age_min", "age_max", "view_count"]) and value is not None:
+        try:
+            value = int(value)
+        except ValueError:
+            value = None
+
+    dic[key] = value
 
 # API 데이터 리스트를 몽고DB 저장 형식으로 변환하는 함수
 def transform_api_data_for_db_insert(api_list):
@@ -156,20 +168,28 @@ def transform_api_data_for_db_insert(api_list):
         vector_doc = {
                 "policy_id": doc_id,  # 위와 동일한 ID 사용
                 "chunk_id": 1,
-                "content_chunk": original_text_list[i],
+                # "content_chunk": original_text_list[i],
                 # "embedding_e5": embedding_e5[i].tolist(),
-                "embedding_e5": [],
-                "embedding_gemini": embedding_gemini[i],
+                # "embedding_gemini": embedding_gemini[i],
                 "metadata":{
                     "source":doc.get('source', ''),
-                    "policy_name":item.get('plcyNm', ''),
-                    "content":item.get('plcyExplnCn', ''),
-                    "category":item.get('lclsfNm', ''),
-                    "sub_category":item.get('mclsfNm', ''),
-                    "support_content":item.get('plcySprtCn', ''),
-                    "supervising_agency":item.get('sprvsnInstCdNm', ''),
+                    "policy_name":doc.get('policy_name', ''),
+                    "content":doc.get('content', ''),
+                    "category":doc.get('category', ''),
+                    "sub_category":doc.get('sub_category', ''),
+                    "support_content":doc.get('support_content', ''),
+                    "supervising_agency":doc.get('supervising_agency', ''),
+                    "sub_categories":doc.get('sub_categories', []),
+                    "education_level": doc.get('school_type', ''),
+                    "region": doc.get('region', []),
+                    "eligibility": {
+                        "age_min": doc.get('min_amt', None),
+                        "age_max": doc.get('max_amt', None)
+                    }
                 },
-                "inserted_at": current_time
+                "inserted_at": current_time,
+                "content_chunk_v3": original_text_list[i],
+                "embedding_gemini_v3": embedding_gemini[i]
             }
         vector_docs.append(vector_doc)
 
@@ -190,6 +210,49 @@ def save_data_to_mongodb(data_docs, vector_docs):
 
     return data_result.acknowledged
 
+# 데이터 전처리
+def preprocess_policy_data(policy_list):
+    print("[preprocess_policy_data] start ")
+
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    
+    for item in policy_list:
+        # 1. 코드를 코드명으로 치환
+        item["pvsnInstGroupCd"] = codes.provider_code.get(item["pvsnInstGroupCd"], item["pvsnInstGroupCd"]) # 제공기관
+        item["plcyPvsnMthdCd"] = codes.get_code_name(codes.policy_provision_method_code, item["plcyPvsnMthdCd"]) # 정책 제공 방법
+        item["aplyPrdSeCd"] = codes.apply_period_type_code.get(item["aplyPrdSeCd"], item["aplyPrdSeCd"]) # 신청기간 구분
+        item["bizPrdSeCd"] = codes.business_period_type_code.get(item["bizPrdSeCd"], item["bizPrdSeCd"]) # 사업기간 구분
+        item["mrgSttsCd"] = codes.marital_status_code.get(item["mrgSttsCd"], item["mrgSttsCd"]) # 결혼 상태
+        item["earnCndSeCd"] = codes.income_condition_type_code.get(item["earnCndSeCd"], item["earnCndSeCd"]) # 소득조건
+        item["plcyMajorCd"] = codes.get_code_name(codes.major_code, item["plcyMajorCd"]) # 정책전공 요건
+        item["jobCd"] = codes.get_code_name(codes.job_code, item["jobCd"]) # 정책 취업요건
+        item["schoolCd"] = codes.get_code_name( codes.school_code, item["schoolCd"]) # 정책 학력 요건
+        item["sbizCd"] = codes.get_code_name( codes.specific_code, item["sbizCd"]) # 정책 특화요건
+        
+        # 2. 지원 날짜
+        if item.get("aplyYmd") and "~" in item["aplyYmd"]:
+            item["apply_period_start"], item["apply_period_end"] = [x.strip() for x in item["aplyYmd"].split("~")]
+        else:
+            item["apply_period_start"] = None
+            item["apply_period_end"] = None
+
+        # 3. 법정동코드를 도단위 지역으로 매핑
+        item["zipCd"] = item["zipCd"].split(',')
+        item["region"] = list(dict.fromkeys(codes.area_codes[code] for code in item["zipCd"] if code in codes.area_codes))
+
+        # 4. sub_categories 필드 추가
+        item_text = sub_categories.build_text(item)
+        categories = sub_categories.classify_sub_categories(item_text)
+        item["sub_categories"] = categories
+
+        # 5. 제출서류 텍스트를 배열로 변환
+        item["submit_documents"] = []
+        if (item.get("sbmsnDcmntCn") is not None and item.get("sbmsnDcmntCn").strip() != ""):
+            item["submit_documents"] = submit_document.get_submit_documents(model, item.get("sbmsnDcmntCn"))
+    
+    return policy_list
+
+
 # 정책 데이터 가져와서 DB에 저장하는 함수
 def fetch_policy_data(page_num, page_size):
     print(f"[fetch_policy_data start] page_num:{page_num}, page_size:{page_size}")
@@ -205,6 +268,9 @@ def fetch_policy_data(page_num, page_size):
         if data.get("resultCode") != 200:
             raise Exception(f"API Error: {data.get('resultMessage')}")
         
+        # 데이터 전처리
+        data["result"]["youthPolicyList"] = preprocess_policy_data(data["result"]["youthPolicyList"])
+
         # 데이터를 몽고DB 형식에 맞게 변환
         data_docs, vector_docs = transform_api_data_for_db_insert(data["result"]["youthPolicyList"])
 
@@ -213,10 +279,10 @@ def fetch_policy_data(page_num, page_size):
 
         print(f"[fetch_policy_data] success : {insert_result}")
 
-        return 1
+        return insert_result
     except Exception as e:
         print(f"[fetch_policy_data] exception : {e}")
-        return -1
+        return False
 
 # API 필드명과 DB 필드명 매핑 반환 함수
 def get_api_db_field_map() :
@@ -234,6 +300,10 @@ def get_api_db_field_map() :
         "aplyYmd" : "dates.apply_period",
         "bizPrdBgngYmd" : "dates.biz_period_start",
         "bizPrdEndYmd" : "dates.biz_period_end",
+        "apply_period_start" : "dates.apply_period_start",
+        "apply_period_end" : "dates.apply_period_end",
+        "aplyPrdSeCd" : "dates.apply_period_type",
+        "bizPrdSeCd" : "dates.biz_period_type",
         "plcyAplyMthdCn" : "how_to_apply",
         "srngMthdCn" : "evaluation_method",
         "aplyUrlAddr" : "application_url",
@@ -248,10 +318,22 @@ def get_api_db_field_map() :
         "earnMinAmt" : "earn.min_amt",
         "earnMaxAmt" : "earn.max_amt",
         "earnEtcCn" : "earn.etc_content",
-        "ptcpPrpTrgtCn" : "restricted_target",
         "inqCnt" : "view_count",
         "frstRegDt" : "registered_at",
-        "lastMdfcnDt" : "modified_at"
+        "lastMdfcnDt" : "modified_at",
+        "submit_documents" : "submit_documents",
+        "zipCd" : "zip_cd",
+        "earnCndSeCd" : "income_condition_type",
+        "jobCd" : "job_type",
+        "mrgSttsCd" : "marital_status",
+        "plcyMajorCd" : "policy_major_type",
+        "plcyPvsnMthdCd" : "policy_provision_method",
+        "sbizCd" : "policy_specific_type",
+        "pvsnInstGroupCd" : "provider",
+        "schoolCd" : "school_type",
+        "ptcpPrpTrgtCn" : "restricted_target",
+        "region" : "region",
+        "sub_categories" : "sub_categories"
     }
 
     return field_map

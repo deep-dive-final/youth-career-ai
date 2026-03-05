@@ -13,7 +13,19 @@ load_dotenv()
 openai_client = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 gemini_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 # Tavily 클라이언트 초기화
-tavily_client = TavilyClient(api_key=os.getenv('TAVILY_API_KEY'))
+# tavily_client = TavilyClient(api_key=os.getenv('TAVILY_API_KEY'))
+
+# 1. 키를 가져온다 (없으면 None)
+api_key = os.getenv('TAVILY_API_KEY')
+
+if api_key:
+    # 키가 있을 때만 실제 클라이언트를 생성
+    tavily_client = TavilyClient(api_key=api_key)
+    print("실제 API 모드로 동작합니다.")
+else:
+    # 키가 없을 때 (임시 우회)
+    tavily_client = None
+    print("API 키가 없습니다. 테스트 모드(검색 불가)로 동작합니다.")
 
 async def get_query_vector_async(text):
     loop = asyncio.get_event_loop()

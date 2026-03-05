@@ -11,8 +11,6 @@ from .db import get_user_by_id
 
 @login_check
 def login(request):
-    print("로그인 여부:", request.is_authenticated)
-    print("로그인 아이디:", request.user_id)
     return render(request, "login.html", 
                   {"GOOGLE_CLIENT_ID" : settings.GOOGLE_CLIENT_ID, 
                    "is_login" : request.is_authenticated,
