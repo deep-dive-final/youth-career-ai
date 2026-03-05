@@ -13,3 +13,4 @@ pyjwt
 openai
 mlflow
 tavily-python
+langgraph
