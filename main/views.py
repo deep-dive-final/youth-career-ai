@@ -691,7 +691,7 @@ def get_policy_requirements(request):
 # 공통 데이터 및 검색 함수들 
 @login_check
 def index(request):
-    print(f"로그인 여부: {request.is_authenticated}, 로그인 email: {request.email}")
+    # print(f"로그인 여부: {request.is_authenticated}, 로그인 email: {request.email}")
 
     try:
         db = getMongoDbClient()
