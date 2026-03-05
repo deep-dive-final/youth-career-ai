@@ -6,6 +6,7 @@ urlpatterns = [
     path("", views.data_list, name="site_admin_home"),
     path("data", views.data, name="data"),
     path("list", views.data_list, name="data_list"),
+    path("dashboard", views.dashboard, name="dashboard"),
     path("api/importData", views.importData, name="importData"),
     path("api/getSearchData", views.getSearchData, name="getSearchData"),
     path("api/uploadFile", views.upload_file, name="uploadFile"),
