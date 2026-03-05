@@ -103,8 +103,8 @@ def get_embeddings(api_list):
     print("[get_embeddings] start ")
 
     original_text_list = [f"정책명 : {item['plcyNm']}\n\
-지역 : [{", ".join(item['region'])}]\n\
-관심분야 : [{", ".join(item['sub_categories'])}]\n\
+지역 : [{', '.join(item['region'])}]\n\
+관심분야 : [{', '.join(item['sub_categories'])}]\n\
 정책 키워드 : {item['plcyKywdNm']} \n\
 정책 설명 : {item['plcyExplnCn']} ".strip() for item in api_list]
     
