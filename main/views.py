@@ -709,7 +709,6 @@ def get_processed_data(cursor, today_dt):
 
 @login_check
 def index(request):
-    # print(f"로그인 여부: {request.is_authenticated}, 로그인 email: {request.email}")
 
     try:
         db = getMongoDbClient()
@@ -764,8 +763,18 @@ def simulate(request):
 def policy_detail(request):
     policy_id = request.GET.get('id')
     db = getMongoDbClient()
-    policy = db['policies'].find_one({"policy_id": policy_id})
-    if not policy: return render(request, "index.html")
+    
+    from bson import ObjectId
+    try:
+        policy = db['policies'].find_one({"_id": ObjectId(policy_id)})
+    except:
+        policy = None
+
+    if not policy:
+        policy = db['policies'].find_one({"policy_id": policy_id})
+
+    if not policy: 
+        return render(request, "index.html", {"error": "해당 정책 데이터를 찾을 수 없습니다."})
 
     apply_period_label = _build_apply_period_label(policy)
     eligibility_age_label = _build_eligibility_age_label(policy)
@@ -777,11 +786,11 @@ def policy_detail(request):
         "submit_docs": policy.get('submit_documents', []), 
         "apply_period_label": apply_period_label,
         "eligibility_age_label": eligibility_age_label,
-        "apply_period": apply_period_label,  # 기존 템플릿/호출부 호환성 유지
+        "apply_period": apply_period_label,  
         "apply_link": apply_link,
         "official_homepage_link": official_homepage_link,
         "docs_info": policy.get('required_docs_text', ''), 
-        "link": official_homepage_link,  # 기존 템플릿 변수명 호환
+        "link": official_homepage_link,  
     })
 
 def policy_list(request):
@@ -796,32 +805,29 @@ def policy_list(request):
         query_filter = {}
         sort_condition = [("_id", -1)]
 
-        # 1. 인기순 정렬 로직
+        # 인기순 정렬 로직
         if sort_type == 'popular':
-            # 데이터가 문자열일 경우를 대비해 일단 가져온 후 파이썬에서 정렬하는 것이 가장 안전합니다.
             cursor = collection.find(query_filter)
             data_list = json.loads(json_util.dumps(list(cursor)))
-            # 조회수를 숫자로 변환하여 내림차순 정렬
             data_list.sort(key=lambda x: int(x.get('view_count', 0)), reverse=True)
             
-        # 2. 마감 임박순 정렬 로직
+        # 마감 임박순 정렬 로직
         elif sort_type == 'deadline':
-            # 오늘 날짜보다 크거나 같고, 상시(99991231)가 아닌 것만 필터링
             query_filter = {
                 "dates.apply_period_end": {
                     "$gte": today_str, 
                     "$ne": "99991231"
                 }
             }
-            sort_condition = [("dates.apply_period_end", 1)] # 가까운 날짜순
+            sort_condition = [("dates.apply_period_end", 1)] 
             cursor = collection.find(query_filter).sort(sort_condition)
             data_list = json.loads(json_util.dumps(list(cursor)))
 
-        else: # 최신순(기본)
+        else: 
             cursor = collection.find(query_filter).sort(sort_condition)
             data_list = json.loads(json_util.dumps(list(cursor)))
 
-        # 3. D-Day 라벨 생성 (HTML에서 사용)
+        # D-Day 라벨 생성
         for item in data_list:
             end_date_str = item.get('dates', {}).get('apply_period_end', '')
             if end_date_str and end_date_str != "99991231":
@@ -834,7 +840,7 @@ def policy_list(request):
 
         titles = {"popular": "인기 정책", "deadline": "마감 임박 정책", "latest": "전체 정책 목록"}
         return render(request, "policy_list.html", {
-            "policies": data_list[:100], # 너무 많으면 로딩이 느리니 적당히 끊어줍니다.
+            "policies": data_list[:100], 
             "title": titles.get(sort_type, "정책 목록")
         })
 
