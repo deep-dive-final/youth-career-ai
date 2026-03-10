@@ -83,33 +83,34 @@
       </div>
 
       <div class="policy-section">
-        <div class="section-header">
-          <h3>🌟 추천 정책</h3>
-          <a
-            href="{% url 'policy_list' %}?sort=latest"
-            class="btn-text"
-            style="text-decoration: none"
-          >
-            +더보기
-          </a>
-        </div>
+  <div class="section-header">
+    <h3>🌟 추천 정책</h3>
+    <a
+      href="{% url 'policy_list' %}?sort=recommend"
+      class="btn-text"
+      style="text-decoration: none"
+    >
+      +더보기
+    </a>
+  </div>
         <div class="policy-scroll">
-          {% for policy in recommended %}
-          <div
-            class="policy-card"
-            onclick="location.href='/policy/?id={{ policy.policy_id }}'"
-          >
-            <div class="card-header">
-              <span class="badge">{{ policy.category }}</span>
-              <span class="date">{{ policy.apply_end_date }}</span>
-            </div>
-            <h3 class="policy-title">{{ policy.policy_name }}</h3>
-            <div class="matching-info">
-              <span>매칭률</span><span class="score">82%</span>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
+  {% for policy in recommended %}
+  <div
+    class="policy-card"
+    onclick="location.href='/policy/?id={{ policy.policy_id }}'"
+  >
+    <div class="card-header">
+      <span class="badge">{{ policy.category }}</span>
+      <span class="date">{{ policy.apply_end_date }}</span>
+    </div>
+    <h3 class="policy-title">{{ policy.policy_name }}</h3>
+    <div class="matching-info">
+  <span>매칭률</span>
+  <span class="score">{{ policy.match_rate }}%</span>
+</div>
+  </div>
+  {% endfor %}
+</div>
       </div>
 
       <div class="policy-section">
@@ -163,7 +164,7 @@
               <span
                 class="badge"
                 style="
-                  background-color: #ff4d4d;
+                  background-color: #4299e1;
                   color: white;
                   border-radius: 50px;
                   padding: 4px 12px;

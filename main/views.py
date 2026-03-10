@@ -15,6 +15,7 @@ from bson import ObjectId
 import boto3
 from django.conf import settings
 from utils.auth import login_check
+from survey.recommend import build_query_text, embed_query_gemini, vector_search_policies, build_prefilter_region_only
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -709,15 +710,61 @@ def get_processed_data(cursor, today_dt):
 
 @login_check
 def index(request):
-
     try:
         db = getMongoDbClient()
         collection = db['policies']
         today_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_str = today_dt.strftime("%Y%m%d")
 
-        rec_cursor = collection.find({}).sort("_id", -1).limit(4)
-        recommended_data = get_processed_data(rec_cursor, today_dt)
+        from survey.recommend import build_query_text, embed_query_gemini, vector_search_policies, build_prefilter_region_only
+        from survey.views import get_profile_filter 
+
+        recommended_data = []
+        profile_filter = get_profile_filter(request)
+        
+        profile = db['user_profiles'].find_one(
+            profile_filter, 
+            sort=[("updated_at", -1), ("created_at", -1)]
+        )
+
+        if profile:
+            try:
+                query_text = build_query_text(profile)
+                query_vec = embed_query_gemini(query_text)
+                prefilter = build_prefilter_region_only(profile)
+                
+                hits = vector_search_policies(db, query_vec, topk=4, prefilter=prefilter)
+                
+                for h in hits:
+                    p = h.get("policy") or {}
+                    p_id = str(h.get("policy_id"))
+                    
+                    raw_score = h.get("score")
+                    if raw_score is not None:
+                        score_val = float(raw_score) * 100
+                        
+                        match_rate = int(round(score_val))
+                        match_rate = min(match_rate, 100)
+                    else:
+                        continue
+
+                    processed_item = {
+                        "id": p_id,
+                        "policy_id": p_id,
+                        "policy_name": p.get("policy_name") or p.get("title"),
+                        "category": p.get("category", "일자리"),
+                        "view_count": p.get("view_count", 0),
+                        "match_rate": match_rate, 
+                        "d_day_label": "추천",
+                    }
+                    recommended_data.append(processed_item)
+
+            except Exception as vec_e:
+                print(f"Vector Search Error: {vec_e}")
+
+        if not recommended_data:
+            rec_cursor = collection.find({}).sort("_id", -1).limit(4)
+            recommended_data = get_processed_data(rec_cursor, today_dt)
 
         cursor = collection.find({}) 
         data_list = get_processed_data(cursor, today_dt)
@@ -797,54 +844,77 @@ def policy_list(request):
     try:
         db = getMongoDbClient()
         collection = db['policies']
-        
-        sort_type = request.GET.get('sort', 'latest')
+        sort_type = request.GET.get('sort') 
         today_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_str = today_dt.strftime("%Y%m%d")
 
-        query_filter = {}
-        sort_condition = [("_id", -1)]
+        query_filter = {} 
+        data_list = []
 
-        # 인기순 정렬 로직
-        if sort_type == 'popular':
+        # 추천순 정렬 로직
+        if sort_type == 'recommend':
+            from survey.recommend import build_query_text, embed_query_gemini, vector_search_policies, build_prefilter_region_only
+            from survey.views import get_profile_filter
+            
+            profile_filter = get_profile_filter(request)
+            profile = db['user_profiles'].find_one(profile_filter, sort=[("updated_at", -1)])
+            
+            if profile:
+                query_text = build_query_text(profile)
+                query_vec = embed_query_gemini(query_text)
+                prefilter = build_prefilter_region_only(profile)
+                
+                hits = vector_search_policies(db, query_vec, topk=100, prefilter=prefilter)
+                for h in hits:
+                    p = h.get("policy") or {}
+                    item = p.copy()
+                    item['policy_id'] = str(h.get("policy_id"))
+                    item['match_rate'] = int(round(float(h.get("score", 0)) * 100))
+                    data_list.append(item)
+                data_list.sort(key=lambda x: x.get('match_rate', 0), reverse=True)
+            else:
+                cursor = collection.find({}).limit(50)
+                data_list = json.loads(json_util.dumps(list(cursor)))
+
+        # 인기순 정렬 로직 
+        elif sort_type == 'popular':
             cursor = collection.find(query_filter)
             data_list = json.loads(json_util.dumps(list(cursor)))
-            data_list.sort(key=lambda x: int(x.get('view_count', 0)), reverse=True)
+            data_list.sort(key=lambda x: int(x.get('view_count', 0) or 0), reverse=True)
             
         # 마감 임박순 정렬 로직
         elif sort_type == 'deadline':
-            query_filter = {
-                "dates.apply_period_end": {
-                    "$gte": today_str, 
-                    "$ne": "99991231"
-                }
-            }
-            sort_condition = [("dates.apply_period_end", 1)] 
-            cursor = collection.find(query_filter).sort(sort_condition)
+            query_filter = {"dates.apply_period_end": {"$gte": today_str, "$ne": "99991231"}}
+            cursor = collection.find(query_filter).sort([("dates.apply_period_end", 1)])
             data_list = json.loads(json_util.dumps(list(cursor)))
 
-        else: 
-            cursor = collection.find(query_filter).sort(sort_condition)
-            data_list = json.loads(json_util.dumps(list(cursor)))
-
-        # D-Day 라벨 생성
         for item in data_list:
+            if '_id' in item:
+                if isinstance(item['_id'], dict) and '$oid' in item['_id']:
+                    item['policy_id'] = item['_id']['$oid']
+                else:
+                    item['policy_id'] = str(item['_id'])
+            
             end_date_str = item.get('dates', {}).get('apply_period_end', '')
             if end_date_str and end_date_str != "99991231":
                 try:
                     target_dt = datetime.strptime(end_date_str, "%Y%m%d")
                     delta = (target_dt - today_dt).days
-                    item['d_day_label'] = f"D-{delta}" if delta > 0 else ("D-Day" if delta == 0 else "마감")
+                    item['d_day_label'] = f"D-{delta}" if delta > 0 else ("D-Day" if delta == 0 else "마감됨")
                 except: item['d_day_label'] = "-"
-            else: item['d_day_label'] = "상시"
+            else:
+                item['d_day_label'] = "상시"
 
-        titles = {"popular": "인기 정책", "deadline": "마감 임박 정책", "latest": "전체 정책 목록"}
+        titles = {"recommend": "나를 위한 맞춤 추천", "popular": "인기 정책", "deadline": "마감 임박 정책"}
+        
         return render(request, "policy_list.html", {
             "policies": data_list[:100], 
-            "title": titles.get(sort_type, "정책 목록")
+            "title": titles.get(sort_type, "정책 목록"),
+            "sort_type": sort_type
         })
 
     except Exception as e:
+        print(f"Policy List Error: {e}")
         return render(request, "index.html", {"error": str(e)})
     
 
