@@ -441,6 +441,7 @@
               </div>
 
               <!-- 삭제 버튼 -->
+              {% if not label.is_negative %}
               <button
                 class="delete-btn flex-shrink-0"
                 onclick="confirmDelete(this)"
@@ -450,6 +451,18 @@
               >
                 negative 업데이트
               </button>
+              {% else %}
+              <button
+                class="delete-btn flex-shrink-0"
+                onclick="confirmDelete(this)"
+                data-query-id="{{ dataset.query_id }}"
+                data-policy-id="{{ label.policy_id }}"
+                data-chunk-id="{{ label.chunk_id }}"
+                disabled
+              >
+                negative 완료
+              </button>
+              {% endif %}
             </div>
           </div>
           {% empty %}
@@ -592,6 +605,7 @@
 
             if (data.success) {
               // 항목 삭제 애니메이션
+              /*
               const labelEl = document.getElementById(
                 `label-${queryId}-${policyId}-${chunkId}`,
               );
@@ -600,6 +614,9 @@
                 labelEl.remove();
                 updateLabelCount(queryId);
               }, 300);
+              */
+              btn.textContent = "negative 완료";
+              btn.disabled = true;
               showToast("삭제되었습니다", "success");
             } else {
               btn.disabled = false;
