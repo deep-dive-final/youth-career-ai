@@ -12,10 +12,23 @@
       .list-header { display: flex; align-items: center; margin-bottom: 24px; padding-top: 10px; }
       .back-btn { background: none; border: none; font-size: 24px; cursor: pointer; margin-right: 15px; }
       .list-title { font-size: 22px; font-weight: bold; color: #1a202c; margin: 0; }
+      
       .policy-list-wrapper { display: flex; flex-direction: column; gap: 16px; }
-      .list-card { background: white; border-radius: 20px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: pointer; border: 1px solid #edf2f7; }
+      .list-card { background: white; border-radius: 20px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); cursor: pointer; border: 1px solid #edf2f7; transition: transform 0.2s; }
+      .list-card:active { transform: scale(0.98); }
+      
       .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
       .badge { background: #f0f0ff; color: #8e8ffa; padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: bold; }
+      
+      .match-rate-badge { 
+        background-color: #f0f0ff !important; 
+        color: #8e8ffa !important; 
+        padding: 4px 12px; 
+        border-radius: 50px; 
+        font-size: 11px; 
+        font-weight: 800 !important;
+        border: 1px solid #e5e7eb;
+      }
       
       .d-day { color: white; padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: bold; }
       .bg-always { background-color: #48bb78 !important; } 
@@ -23,7 +36,8 @@
       .bg-closed { background-color: #ff4d4d !important; } 
       
       .policy-title { font-size: 18px; font-weight: bold; color: #2d3748; line-height: 1.4; margin: 8px 0; }
-      .policy-info { font-size: 13px; color: #a0aec0; margin-top: 10px; display: flex; justify-content: space-between; }
+      .policy-info { font-size: 13px; color: #a0aec0; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
+      .match-info-text { color: #8e8ffa; font-weight: bold; font-size: 13px; }
     </style>
   </head>
   <body>
@@ -37,19 +51,29 @@
         {% for policy in policies %}
         <div class="list-card" onclick="location.href='/policy/?id={{ policy.policy_id }}'">
           <div class="card-header">
-            <span class="badge">{{ policy.category|default:"일반" }}</span>
+            <span class="badge">{{ policy.category|default:"일자리" }}</span>
             
-            <span class="d-day 
-  {% if policy.d_day_label == '상시' %}bg-always
-  {% elif 'D-' in policy.d_day_label or policy.d_day_label == 'D-Day' %}bg-ongoing
-  {% else %}bg-closed{% endif %}">
-  {{ policy.d_day_label }}
-</span>
+            {% if sort_type == 'recommend' %}
+              <span class="match-rate-badge">매칭률 {{ policy.match_rate }}%</span>
+            {% else %}
+              <span class="d-day 
+                {% if policy.d_day_label == '상시' %}bg-always
+                {% elif 'D-' in policy.d_day_label or policy.d_day_label == 'D-Day' %}bg-ongoing
+                {% else %}bg-closed{% endif %}">
+                {{ policy.d_day_label }}
+              </span>
+            {% endif %}
           </div>
+
           <h3 class="policy-title">{{ policy.policy_name }}</h3>
+          
           <div class="policy-info">
-            <span>📅 마감일: {{ policy.dates.apply_period_end }}</span>
-            <span style="color: #ff8e8f;">🔥 조회수 {{ policy.view_count|default:0 }}</span>
+            {% if sort_type == 'recommend' %}
+              <span class="match-info-text">📅 마감일: {{ policy.dates.apply_period_end|default:"20261130" }}</span>
+            {% else %}
+              <span>📅 마감일: {{ policy.dates.apply_period_end }}</span>
+            {% endif %}
+            <span style="color: #ff8e8f; font-weight: 500;">🔥 조회수 {{ policy.view_count|default:0 }}</span>
           </div>
         </div>
         {% endfor %}

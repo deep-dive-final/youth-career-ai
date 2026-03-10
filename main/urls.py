@@ -26,7 +26,9 @@ urlpatterns = [
     path("api/upload_to_s3/", views.upload_to_s3, name="upload_to_s3"), # S3 업로드 API
 
     path("api/policy-summary/", views.get_policy_summary, name="get_policy_summary"), # 정책 상세 요약 API
+
     path("api/policy-simulation/", views.get_policy_simulation, name="get_policy_simulation"), # 정책 시뮬레이션 질문 API
+    
     path("api/get_policy_requirements/", views.get_policy_requirements, name="get_policy_requirements"), # 하위 호환 API
 
     path("calendar/", views.calendar_view, name="calendar"), # 캘린더 페이지
