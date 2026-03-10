@@ -210,7 +210,7 @@ def labeling(request):
     page_size = int(request.GET.get("page_size", 10))
 
     db = getMongoDbClient()
-    collection = db["labeled_dataset"]
+    collection = db["train_dataset"]
 
     # 전체 데이터 조회
     datasets = list(collection.find({}).skip((page - 1) * page_size).limit(page_size))
@@ -220,9 +220,10 @@ def labeling(request):
         dataset["_id"] = str(dataset["_id"])
         for label in dataset.get("label", []):
             label["policy_id"] = str(label.get("policy_id", ""))
+            label["snippet"] = label["snippet"].replace("지역 : ", "<br>지역 : ").replace("관심분야 : ", "<br>관심분야 : ").replace("정책 키워드 : ", "<br>정책 키워드 : ").replace("정책 설명 : ", "<br>정책 설명 : ").replace("지원 혜택 : ", "<br>지원 혜택 : ")  # 줄바꿈 처리
 
     context = {
-        "labeled_dataset": datasets,
+        "train_dataset": datasets,
         "page_range": range(1, 12),
         "current_page": page,
     }
@@ -230,7 +231,7 @@ def labeling(request):
 
 
 def delete_label(request):
-    """특정 label 항목 삭제"""
+    """특정 label 항목 negative로 업데이트"""
     try:
         data = json.loads(request.body)
         query_id = data.get("query_id")
@@ -240,22 +241,20 @@ def delete_label(request):
             return JsonResponse({"success": False, "error": "필수 파라미터 누락"}, status=400)
 
         db = getMongoDbClient()
-        collection = db["labeled_dataset"]
+        collection = db["train_dataset"]
 
-        # label 배열에서 해당 항목 제거 ($pull 사용)
+        # label 배열에서 해당 항목 negative로 업데이트
         result = collection.update_one(
-            {"query_id": query_id},
+            {"query_id": query_id, "label.policy_id": policy_id},
             {
-                "$pull": {
-                    "label": {
-                        "policy_id": policy_id
-                    }
+                "$set": {
+                    "label.$.is_negative": True
                 }
             },
         )
 
         if result.modified_count > 0:
-            return JsonResponse({"success": True, "message": "삭제 완료"})
+            return JsonResponse({"success": True, "message": "업데이트 완료"})
         else:
             return JsonResponse({"success": False, "error": "해당 항목을 찾을 수 없습니다"}, status=404)
 
