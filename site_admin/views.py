@@ -224,7 +224,7 @@ def labeling(request):
 
     context = {
         "train_dataset": datasets,
-        "page_range": range(1, 12),
+        "page_range": range(1, 10),
         "current_page": page,
     }
     return render(request, "labeling.html", context)
