@@ -2,9 +2,10 @@ from datetime import datetime, timedelta
 
 CHAT_CACHE = {}
 CACHE_TTL = timedelta(minutes=30)
-MAX_MESSAGES = 6
+MAX_MESSAGES = 10 
 
-def get_cached_messages(session_id):
+def get_cached_data(session_id):
+    """메시지와 요약본을 함께 가져옴"""
     data = CHAT_CACHE.get(session_id)
     if not data:
         return None
@@ -13,33 +14,24 @@ def get_cached_messages(session_id):
     if datetime.now() - data["updated_at"] > CACHE_TTL:
         CHAT_CACHE.pop(session_id, None)
         return None
-
-    print(f"[get_cached_messages] session_id:{session_id}, messages:{data['messages']}")
     
-    return data["messages"]
+    return data
 
-
-def set_cached_messages(session_id, messages):
+def set_cached_data(session_id, messages, summary=""):
+    """메시지 10개 제한 및 요약본 저장"""
     CHAT_CACHE[session_id] = {
-        "messages": messages[-MAX_MESSAGES:],
+        "messages": messages[-MAX_MESSAGES:], 
+        "summary": summary, # 요약본 저장 공간
         "updated_at": datetime.now()
     }
-
-    print(f"[set_cached_messages] session_id:{session_id}, messages:{messages}")
-
 
 def append_message(session_id, role, content):
     data = CHAT_CACHE.get(session_id)
 
     if not data:
-        CHAT_CACHE[session_id] = {
-            "messages": [{"role": role, "content": content}],
-            "updated_at": datetime.now()
-        }
+        set_cached_data(session_id, [{"role": role, "content": content}])
         return
 
     data["messages"].append({"role": role, "content": content})
-    data["messages"] = data["messages"][-MAX_MESSAGES:]
+    data["messages"] = data["messages"][-MAX_MESSAGES:] # 10개 유지
     data["updated_at"] = datetime.now()
-
-    print(f"[append_message] session_id:{session_id}, role:{role}, content:{content}")
