@@ -1,0 +1,364 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>저장 목록 - 정책 추천 서비스</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+    <style>
+      .saved-shell {
+        padding: 0 20px 40px;
+      }
+
+      .saved-intro {
+        background: linear-gradient(135deg, rgba(168, 230, 207, 0.95), rgba(126, 196, 207, 0.95));
+        border-radius: 28px;
+        padding: 20px;
+        color: white;
+        box-shadow: 0 12px 30px rgba(126, 196, 207, 0.18);
+        margin-bottom: 20px;
+      }
+
+      .saved-intro h3 {
+        font-size: 20px;
+        margin-bottom: 8px;
+      }
+
+      .saved-intro p {
+        font-size: 13px;
+        line-height: 1.6;
+        opacity: 0.95;
+      }
+
+      .saved-count {
+        color: #64748b;
+        font-size: 14px;
+        margin-bottom: 16px;
+      }
+
+      .saved-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .saved-card {
+        position: relative;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 24px;
+        padding: 20px;
+        box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        text-decoration: none;
+        color: inherit;
+        display: block;
+      }
+
+      .saved-card.is-closed {
+        opacity: 0.78;
+      }
+
+      .saved-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+        padding-right: 44px;
+      }
+
+      .saved-card-badges {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .saved-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 12px;
+        border-radius: 999px;
+        font-size: 11px;
+        color: white;
+      }
+
+      .saved-badge.category {
+        background: linear-gradient(135deg, #7ec4cf, #5da8b5);
+      }
+
+      .saved-badge.dday {
+        background: #ff7eb9;
+      }
+
+      .saved-badge.dday.closed {
+        background: #94a3b8;
+      }
+
+      .saved-remove-btn {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 1px solid #e2e8f0;
+        background: white;
+        color: #64748b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .saved-remove-btn:hover {
+        background: #fff1f2;
+        color: #e11d48;
+        border-color: #fecdd3;
+      }
+
+      .saved-title {
+        font-size: 18px;
+        line-height: 1.45;
+        color: #1e293b;
+        margin-bottom: 10px;
+      }
+
+      .saved-summary {
+        background: linear-gradient(135deg, #f8fbfd, #eef7f9);
+        border-radius: 18px;
+        padding: 14px;
+        font-size: 13px;
+        color: #64748b;
+        line-height: 1.6;
+        margin-bottom: 14px;
+      }
+
+      .saved-meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .saved-meta-box {
+        background: #f8fafc;
+        border-radius: 16px;
+        padding: 12px;
+      }
+
+      .saved-meta-label {
+        display: block;
+        font-size: 11px;
+        color: #94a3b8;
+        margin-bottom: 6px;
+      }
+
+      .saved-meta-value {
+        display: block;
+        font-size: 13px;
+        color: #334155;
+        line-height: 1.45;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 72px 24px 16px;
+      }
+
+      .empty-state-visual {
+        width: 88px;
+        height: 88px;
+        margin: 0 auto 18px;
+        border-radius: 28px;
+        background: linear-gradient(135deg, #e0f2fe, #cffafe);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #0891b2;
+        box-shadow: 0 12px 28px rgba(14, 165, 233, 0.12);
+      }
+
+      .empty-state h3 {
+        font-size: 20px;
+        color: #1e293b;
+        margin-bottom: 8px;
+      }
+
+      .empty-state p {
+        color: #64748b;
+        font-size: 14px;
+        line-height: 1.6;
+        margin-bottom: 24px;
+      }
+
+      .saved-loading {
+        text-align: center;
+        color: #64748b;
+        padding: 28px 0 12px;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="header-top" style="margin-bottom: 18px">
+          <button class="btn-icon" onclick="goBack()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+          <h2 style="margin: 0">저장 목록</h2>
+          <div style="width: 44px"></div>
+        </div>
+      </div>
+
+      <div class="saved-shell">
+        <section class="saved-intro">
+          <h3>브라우저에 저장된 정책</h3>
+          <p>비로그인 상태에서도 현재 브라우저에 저장한 정책을 다시 볼 수 있습니다. 다른 기기나 브라우저와는 아직 동기화되지 않습니다.</p>
+        </section>
+
+        <p id="savedCount" class="saved-count">저장된 정책 0개</p>
+
+        <div id="loadingState" class="saved-loading hidden">저장한 정책을 불러오는 중입니다.</div>
+        <div id="savedList" class="saved-list"></div>
+
+        <div id="emptyState" class="empty-state hidden">
+          <div class="empty-state-visual">
+            <svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </div>
+          <h3>저장된 정책이 없습니다</h3>
+          <p>정책 상세 페이지에서 북마크 버튼을 누르면 이 화면에서 모아볼 수 있습니다.</p>
+          <button class="btn-primary" style="max-width: 220px; margin: 0 auto" onclick="window.location.href='/search/'">정책 검색하러 가기</button>
+        </div>
+      </div>
+    </div>
+
+    <button id="floatingHome" class="floating-home" onclick="window.location.href='/'">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+      </svg>
+    </button>
+
+    <script src="{% static 'js/data.js' %}"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    <script>
+      function updateCount(count) {
+        document.getElementById("savedCount").textContent = `저장된 정책 ${count}개`;
+      }
+
+      function showEmptyState() {
+        document.getElementById("savedList").innerHTML = "";
+        document.getElementById("emptyState").classList.remove("hidden");
+      }
+
+      function hideEmptyState() {
+        document.getElementById("emptyState").classList.add("hidden");
+      }
+
+      function setLoading(isLoading) {
+        document.getElementById("loadingState").classList.toggle("hidden", !isLoading);
+      }
+
+      function renderSavedPolicies(policies) {
+        const container = document.getElementById("savedList");
+
+        if (!policies.length) {
+          showEmptyState();
+          updateCount(0);
+          return;
+        }
+
+        hideEmptyState();
+        updateCount(policies.length);
+
+        container.innerHTML = policies
+          .map((policy) => {
+            const safeSummary = policy.support_summary || "상세 공고 내용을 확인해주세요.";
+            const agency = policy.supervising_agency || "운영기관 정보 없음";
+            const ddayClass = policy.dday === "마감" ? "closed" : "";
+            const cardClass = policy.dday === "마감" ? "saved-card is-closed" : "saved-card";
+
+            return `
+              <a href="/policy/?id=${encodeURIComponent(policy.policy_id)}" class="${cardClass}">
+                <button class="saved-remove-btn" type="button" onclick="removeSavedPolicy(event, '${policy.policy_id}')">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+                <div class="saved-card-header">
+                  <div class="saved-card-badges">
+                    <span class="saved-badge category">${policy.category}</span>
+                    <span class="saved-badge dday ${ddayClass}">${policy.dday}</span>
+                  </div>
+                </div>
+                <h3 class="saved-title">${policy.policy_name}</h3>
+                <div class="saved-summary">${safeSummary}</div>
+                <div class="saved-meta">
+                  <div class="saved-meta-box">
+                    <span class="saved-meta-label">신청 기간</span>
+                    <span class="saved-meta-value">${policy.apply_period_label}</span>
+                  </div>
+                  <div class="saved-meta-box">
+                    <span class="saved-meta-label">신청 자격</span>
+                    <span class="saved-meta-value">${policy.eligibility_age_label}</span>
+                  </div>
+                </div>
+                <div style="margin-top: 12px; font-size: 12px; color: #7ec4cf;">${agency}</div>
+              </a>
+            `;
+          })
+          .join("");
+      }
+
+      async function loadSavedPolicies() {
+        const savedIds = savedPolicies.getAll();
+        updateCount(savedIds.length);
+
+        if (!savedIds.length) {
+          showEmptyState();
+          return;
+        }
+
+        setLoading(true);
+
+        try {
+          const params = new URLSearchParams({ ids: savedIds.join(",") });
+          const response = await fetch(`/api/saved-policies/?${params.toString()}`);
+          const data = await response.json();
+
+          if (!response.ok || data.status !== "success") {
+            throw new Error(data.message || "저장 목록을 불러오지 못했습니다.");
+          }
+
+          renderSavedPolicies(data.policies || []);
+        } catch (error) {
+          console.error(error);
+          alert("저장 목록을 불러오지 못했습니다.");
+          showEmptyState();
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      function removeSavedPolicy(event, policyId) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        savedPolicies.remove(policyId);
+        loadSavedPolicies();
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        loadSavedPolicies();
+      });
+    </script>
+  </body>
+</html>

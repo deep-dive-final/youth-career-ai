@@ -50,7 +50,9 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
         </button>
         <h2 style="margin: 0; font-size: 18px;">정책 상세</h2>
-        <div style="width: 24px;"></div>
+        <button id="saveBtn" onclick="toggleSave()" style="border: none; background: none; cursor: pointer; padding: 4px;">
+          <svg id="saveIcon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="2"><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+        </button>
       </div>
 
       <div class="content-wrapper">
@@ -137,9 +139,25 @@
       </div>
     </div>
 
+    <script src="{% static 'js/data.js' %}"></script>
     <script>
+      const POLICY_ID = "{{ policy.policy_id }}";
+
+      function updateSaveUI(isSaved) {
+        const icon = document.getElementById('saveIcon');
+        icon.setAttribute('fill', isSaved ? '#7ec4cf' : 'none');
+        icon.setAttribute('stroke', isSaved ? '#7ec4cf' : '#a0aec0');
+      }
+
+      function toggleSave() {
+        const isSaved = savedPolicies.toggle(POLICY_ID);
+        updateSaveUI(isSaved);
+      }
+
       document.addEventListener('DOMContentLoaded', function() {
-          const policyId = "{{ policy.policy_id }}";
+          updateSaveUI(savedPolicies.isSaved(POLICY_ID));
+
+          const policyId = POLICY_ID;
           const listElement = document.getElementById('requirement-list');
 
           if (policyId && listElement) {

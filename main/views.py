@@ -145,6 +145,79 @@ def _build_eligibility_age_label(policy):
     return f"만 {age_min}세 ~ {age_max}세"
 
 
+def _build_dday_label(policy):
+    dates = policy.get("dates") or {}
+    apply_period_type = _as_clean_text(dates.get("apply_period_type"))
+    if apply_period_type == "마감":
+        return "마감"
+
+    end = _as_clean_text(dates.get("apply_period_end"))
+    if not end:
+        return "-"
+    if end == "99991231":
+        return "상시"
+    if not re.fullmatch(r"\d{8}", end):
+        return "-"
+
+    try:
+        deadline = datetime.strptime(end, "%Y%m%d").replace(hour=0, minute=0, second=0, microsecond=0)
+    except ValueError:
+        return "-"
+
+    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    delta = (deadline - today).days
+    if delta > 0:
+        return f"D-{delta}"
+    if delta == 0:
+        return "D-Day"
+    return "마감"
+
+
+def _truncate_text(text, max_length=100):
+    cleaned = _as_clean_text(text)
+    if len(cleaned) <= max_length:
+        return cleaned
+    return f"{cleaned[:max_length].rstrip()}..."
+
+
+def _normalize_policy_ids(raw_ids):
+    if raw_ids is None:
+        return []
+
+    values = raw_ids if isinstance(raw_ids, list) else str(raw_ids).split(",")
+    normalized = []
+    seen = set()
+
+    for value in values:
+        policy_id = _as_clean_text(value)
+        if not policy_id or policy_id in seen:
+            continue
+        seen.add(policy_id)
+        normalized.append(policy_id)
+
+    return normalized
+
+
+def _serialize_saved_policy(policy):
+    summary_source = (
+        _as_clean_text(policy.get("summary_text"))
+        or _as_clean_text(policy.get("support_content"))
+        or _as_clean_text(policy.get("content"))
+    )
+    summary = _truncate_text(summary_source, 110) or "상세 공고 내용을 확인해주세요."
+
+    return {
+        "policy_id": _as_clean_text(policy.get("policy_id")),
+        "policy_name": _as_clean_text(policy.get("policy_name")) or "정책명 없음",
+        "category": _as_clean_text(policy.get("category")) or "일반",
+        "dday": _build_dday_label(policy),
+        "apply_period_label": _build_apply_period_label(policy),
+        "eligibility_age_label": _build_eligibility_age_label(policy),
+        "support_summary": summary,
+        "supervising_agency": _as_clean_text(policy.get("supervising_agency")),
+    }
+
+
 def _build_requirements_context(policy):
     support_content = _as_clean_text(policy.get("support_content"))
     eligibility_text = _as_clean_text((policy.get("eligibility") or {}).get("text"))
@@ -804,8 +877,35 @@ def simulate(request):
     return render(request, "simulate.html", {
         "policy": policy,
         "policy_id": policy_id,
-        "user_info": json.dumps(user_info) 
+        "user_info": json.dumps(user_info)
     })
+
+
+def saved_list(request):
+    return render(request, "saved.html")
+
+
+def get_saved_policies(request):
+    try:
+        policy_ids = _normalize_policy_ids(request.GET.get("ids"))
+        if not policy_ids:
+            return JsonResponse({"status": "success", "policies": []})
+
+        db = getMongoDbClient()
+        documents = list(db["policies"].find({"policy_id": {"$in": policy_ids}}))
+        document_map = {
+            _as_clean_text(document.get("policy_id")): _serialize_saved_policy(document)
+            for document in documents
+        }
+        ordered_policies = [document_map[policy_id] for policy_id in policy_ids if policy_id in document_map]
+
+        return JsonResponse({
+            "status": "success",
+            "policies": ordered_policies,
+        }, json_dumps_params={"ensure_ascii": False})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
 
 def policy_detail(request):
     policy_id = request.GET.get('id')

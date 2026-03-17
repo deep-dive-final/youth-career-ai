@@ -211,24 +211,30 @@ const user = {
 
 // 저장된 정책 관리
 const savedPolicies = {
-  getAll: () => storage.get("savedPolicies", []),
+  getAll: () =>
+    storage
+      .get("savedPolicies", [])
+      .map((policyId) => String(policyId))
+      .filter((policyId, index, array) => policyId && array.indexOf(policyId) === index),
 
   add: (policyId) => {
+    const normalizedId = String(policyId);
     const saved = savedPolicies.getAll();
-    if (!saved.includes(policyId)) {
-      saved.push(policyId);
+    if (!saved.includes(normalizedId)) {
+      saved.push(normalizedId);
       storage.set("savedPolicies", saved);
     }
   },
 
   remove: (policyId) => {
+    const normalizedId = String(policyId);
     const saved = savedPolicies.getAll();
-    const filtered = saved.filter((id) => id !== policyId);
+    const filtered = saved.filter((id) => id !== normalizedId);
     storage.set("savedPolicies", filtered);
   },
 
   isSaved: (policyId) => {
-    return savedPolicies.getAll().includes(policyId);
+    return savedPolicies.getAll().includes(String(policyId));
   },
 
   toggle: (policyId) => {
