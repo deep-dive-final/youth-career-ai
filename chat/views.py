@@ -86,3 +86,35 @@ async def chat_response(request):
     except Exception as e:
         print(f"Error in chat_response: {e}")
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    
+@csrf_exempt
+async def reset_chat(request):
+    if request.method == "POST":
+        try:
+            body_unicode = request.body.decode('utf-8')
+            body_data = json.loads(body_unicode)
+            session_id = body_data.get('session_id')
+
+            if not session_id:
+                # 수정된 부분: session.get을 sync_to_async로 감싸서 호출
+                def get_session():
+                    return request.session.get("session_id")
+                
+                session_id = await sync_to_async(get_session)()
+
+            if session_id:
+                # 캐시 초기화 실행
+                await asyncio.to_thread(chat_cache.set_cached_data, session_id, [], "")
+                
+                return JsonResponse({
+                    "status": "success", 
+                    "message": "대화가 초기화되었습니다."
+                }, json_dumps_params={'ensure_ascii': False})
+            else:
+                return JsonResponse({"status": "error", "message": "세션 ID를 찾을 수 없습니다."}, status=400)
+
+        except Exception as e:
+            print(f"Reset Chat Error: {e}") # 에러 로그 출력
+            return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    
+    return JsonResponse({"status": "error", "message": "Invalid method"}, status=405)

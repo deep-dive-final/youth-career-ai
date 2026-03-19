@@ -60,7 +60,14 @@
               24시간 언제나 상담 가능
             </p>
           </div>
-          <div style="width: 44px"></div>
+          <div style="width: 44px; text-align: right;">
+            <button class="btn-icon" onclick="resetChat()" title="대화 초기화">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                <path d="M3 3v5h5"></path>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -284,6 +291,56 @@
         sendBtn.disabled = false;
         chatInput.disabled = false;
         chatInput.focus();
+      }
+      // 대화 초기화 함수
+      async function resetChat() {
+        if (!confirm("대화 내역을 초기화하시겠습니까?")) return;
+
+        try {
+          const response = await fetch(`/chat/api/chat_reset`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCookie('csrftoken') 
+            },
+            body: JSON.stringify({})
+          });
+
+          const result = await response.json();
+
+          if (result.status === "success") {
+            // 1. 화면의 모든 메시지 삭제
+            chatMessages.innerHTML = "";
+            
+            // 2. 초기 웰컴 메시지 다시 표시
+            const welcomeMessage = "대화가 초기화되었습니다. 👋\n새로운 질문을 입력해 주세요!";
+            addAIMessage(welcomeMessage);
+            
+            // 3. 숨겨졌던 퀵 버튼 다시 표시
+            quickQuestions.style.display = "flex";
+          } else {
+            alert("초기화 실패: " + result.message);
+          }
+        } catch (error) {
+          console.error("resetChat Error:", error);
+          alert("서버 통신 중 오류가 발생했습니다.");
+        }
+      }
+
+      // Django CSRF 토큰 가져오기 함수
+      function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+          const cookies = document.cookie.split(';');
+          for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+              break;
+            }
+          }
+        }
+        return cookieValue;
       }
     </script>
   </body>
