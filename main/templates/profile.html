@@ -1,0 +1,91 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>프로필 - 정책 추천 서비스</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-top">
+        <button class="btn-icon" onclick="history.back()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </button>
+        <h2 style="margin: 0;">프로필</h2>
+        <button class="btn-icon" onclick="location.href='/survey'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        </button>
+      </div>
+    </div>
+
+    <div style="padding: 0 20px 24px;">
+      <div style="text-align: center; padding: 32px 0;">
+        <div id="profileImage" style="width: 100px; height: 100px; margin: 0 auto 16px; border-radius: 50%; background: linear-gradient(to bottom right, #8e8ffa, #7ec4cf); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        </div>
+        <h1 style="margin-bottom: 4px;">{{ user_name }} 님</h1>
+        <p style="color: #a0aec0; font-size: 14px; margin: 0;">{{ user_email|default:"연동된 이메일 없음" }}</p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;">
+        <div style="background: white; border-radius: 20px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+          <p style="margin: 0 0 4px 0; font-size: 24px; color: #7ec4cf; font-weight: bold;">{{ saved_count|default:"0" }}</p>
+          <p style="margin: 0; font-size: 12px; color: #a0aec0;">저장</p>
+        </div>
+        <div style="background: white; border-radius: 20px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+          <p style="margin: 0 0 4px 0; font-size: 20px; color: #a29bfe; font-weight: bold;">{{ profile.region|default:"-" }}</p>
+          <p style="margin: 0; font-size: 12px; color: #a0aec0;">지역</p>
+        </div>
+        <div style="background: white; border-radius: 20px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+          <p style="margin: 0 0 4px 0; font-size: 14px; color: #fdcb6e; font-weight: bold; line-height: 1.2;">
+            {{ profile.job_status|default:"-" }}
+          </p>
+          <p style="margin: 0; font-size: 10px; color: #a0aec0;">현재상태</p>
+        </div>
+      </div>
+
+<div style="background: white; border-radius: 24px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 16px;">
+  <h3 style="font-size: 16px; color: #2d3748; margin-bottom: 16px;">📋 나의 맞춤 설정 정보</h3>
+  
+  <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f0f4f8;">
+    <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">나이 대</p>
+    <p style="font-size: 14px; color: #2d3748; margin: 0;">{{ profile.age|default:"-" }}</p>
+  </div>
+
+  <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f0f4f8;">
+    <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">학력 정보</p>
+    <p style="font-size: 14px; color: #2d3748; margin: 0;">
+      {{ profile.education_level|default:"" }} ({{ profile.education_status|default:"-" }})
+    </p>
+  </div>
+  
+  <div>
+    <p style="font-size: 12px; color: #a0aec0; margin-bottom: 4px;">소득 수준</p>
+    <p style="font-size: 13px; color: #2d3748; margin: 0; line-height: 1.4;">{{ profile.income_level|default:"-" }}</p>
+  </div>
+</div>
+
+      <div style="background: white; border-radius: 24px; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 16px;">
+        <a href="/saved" style="display: flex; align-items: center; justify-content: space-between; padding: 16px; text-decoration: none; color: #2d3748;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8e8ffa" stroke-width="2"><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+            <span style="font-weight: 500;">저장 목록 확인</span>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#cbd5e0" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </a>
+      </div>
+
+      <button onclick="location.href='/logout'" style="width: 100%; padding: 16px; border-radius: 50px; background: white; color: #ff7675; border: 2px solid #ff7675; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px;">
+        로그아웃
+      </button>
+    </div>
+  </div>
+
+  <button class="floating-home" onclick="location.href='/'" style="position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; border-radius: 28px; background: #8e8ffa; color: white; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+  </button>
+</body>
+</html>

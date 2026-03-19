@@ -16,6 +16,7 @@ import boto3
 from django.conf import settings
 from utils.auth import login_check
 from survey.recommend import build_query_text, embed_query_gemini, vector_search_policies, build_prefilter_region_only
+from survey.views import get_profile_filter 
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -716,9 +717,6 @@ def index(request):
         today_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_str = today_dt.strftime("%Y%m%d")
 
-        from survey.recommend import build_query_text, embed_query_gemini, vector_search_policies, build_prefilter_region_only
-        from survey.views import get_profile_filter 
-
         recommended_data = []
         profile_filter = get_profile_filter(request)
         
@@ -852,10 +850,7 @@ def policy_list(request):
         data_list = []
 
         # 추천순 정렬 로직
-        if sort_type == 'recommend':
-            from survey.recommend import build_query_text, embed_query_gemini, vector_search_policies, build_prefilter_region_only
-            from survey.views import get_profile_filter
-            
+        if sort_type == 'recommend':            
             profile_filter = get_profile_filter(request)
             profile = db['user_profiles'].find_one(profile_filter, sort=[("updated_at", -1)])
             
@@ -985,4 +980,53 @@ def getPolicyData(request):
         return JsonResponse({"status": "success", "data": data}, json_dumps_params={'ensure_ascii': False})
     except Exception as e: 
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
-    
+
+
+@login_check
+def profile_view(request):
+    try:
+        db = getMongoDbClient()
+        raw_user_id = getattr(request, 'user_id', None)
+        user_name = getattr(request, 'user_name', '사용자')
+        anon_id = request.session.get("anon_id")
+
+        if not raw_user_id:
+            return render(request, "index.html", {"error": "로그인이 필요합니다."})
+
+        user_account = db['users'].find_one({"_id": ObjectId(raw_user_id)})
+        user_email = user_account.get('email', '정보 없음') if user_account else "계정 없음"
+
+        current_profile = db['user_profiles'].find_one({
+            "$or": [
+                {"user_id": ObjectId(raw_user_id)},
+                {"user_id": str(raw_user_id)},
+                {"anon_id": anon_id}
+            ]
+        }, sort=[("updated_at", -1)])
+
+        if current_profile and str(current_profile.get('user_id')) != str(raw_user_id):
+            db['user_profiles'].update_one(
+                {"_id": current_profile['_id']},
+                {"$set": {"user_id": ObjectId(raw_user_id)}}
+            )
+            current_profile = db['user_profiles'].find_one({"_id": current_profile['_id']})
+            print(f"✅ 화면 갱신용 데이터 재로드 완료: {current_profile.get('updated_at')}")
+
+        saved_count = 0
+        if 'user_favorites' in db.list_collection_names():
+            saved_count = db['user_favorites'].count_documents({"user_id": ObjectId(raw_user_id)})
+
+        print(f"📊 프론트로 전달되는 최종 날짜: {current_profile.get('updated_at') if current_profile else '데이터 없음'}")
+
+        return render(request, "profile.html", {
+            "profile": current_profile,  
+            "user_email": user_email,
+            "user_name": user_name,
+            "saved_count": saved_count
+        })
+        
+    except Exception as e:
+        print(f"❌ profile_view 오류 발생: {e}")
+        return render(request, "index.html")
+
+

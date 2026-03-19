@@ -33,4 +33,5 @@ urlpatterns = [
 
     path("calendar/", views.calendar_view, name="calendar"), # 캘린더 페이지
 
+    path('profile/', views.profile_view, name='profile'), # 마이페이지
 ]
