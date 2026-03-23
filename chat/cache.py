@@ -17,12 +17,13 @@ def get_cached_data(session_id):
     
     return data
 
-def set_cached_data(session_id, messages, summary=""):
+def set_cached_data(session_id, messages, summary="", known_slots=None):
     """메시지 10개 제한 및 요약본 저장"""
     CHAT_CACHE[session_id] = {
-        "messages": messages[-MAX_MESSAGES:], 
-        "summary": summary, # 요약본 저장 공간
-        "updated_at": datetime.now()
+        "messages":    messages[-MAX_MESSAGES:],
+        "summary":     summary,
+        "known_slots": known_slots or {},   # 대화 중 수집된 슬롯 (나이/지역/취업상태)
+        "updated_at":  datetime.now()
     }
 
 def append_message(session_id, role, content):
@@ -33,5 +34,10 @@ def append_message(session_id, role, content):
         return
 
     data["messages"].append({"role": role, "content": content})
-    data["messages"] = data["messages"][-MAX_MESSAGES:] # 10개 유지
+    data["messages"] = data["messages"][-MAX_MESSAGES:]  # 10개 유지
+
+    # Phase 1-A: user 메시지로 시작 보장 (OpenAI API 오류 방지)
+    while data["messages"] and data["messages"][0]["role"] != "user":
+        data["messages"].pop(0)
+
     data["updated_at"] = datetime.now()
