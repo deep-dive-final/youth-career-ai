@@ -677,8 +677,21 @@ async def agent_node(state: PolicyAgentState):
         msg      = response.choices[0].message
         tc_count = len(msg.tool_calls) if msg.tool_calls else 0
         logger.info(f"[agent_node/OpenAI] ◀ 완료 | tool_calls={tc_count}개 | text='{(msg.content or '')[:80]}'")
+
+        # ChatCompletionMessage 객체 → dict 변환 (이후 .get() 호출 대비)
+        msg_dict: dict = {"role": msg.role, "content": msg.content or ""}
+        if msg.tool_calls:
+            msg_dict["tool_calls"] = [
+                {
+                    "id":       tc.id,
+                    "type":     "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                }
+                for tc in msg.tool_calls
+            ]
+
         return {
-            "messages":   [msg],
+            "messages":   [msg_dict],
             "summary":    new_summary,
             "tool_calls": msg.tool_calls if msg.tool_calls else [],
         }
