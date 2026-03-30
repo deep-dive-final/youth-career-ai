@@ -26,10 +26,12 @@
                 <line x1="3" y1="18" x2="21" y2="18"></line>
               </svg>
             </button>
-            <div class="user-info">
-              <p>안녕하세요 👋</p>
-              <h2 id="userName">{{ user_name }} 님</h2>
-            </div>
+            <div class="user-info" 
+     onclick="location.href='/profile/'" 
+     style="cursor: pointer;">
+  <p>안녕하세요 👋</p>
+  <h2 id="userName">{{ user_name }} 님</h2>
+</div>
           </div>
           <div class="header-right">
             {% if not is_login %}
@@ -205,8 +207,9 @@
         </button>
         <h2>메뉴</h2>
       </div>
-      <nav class="sidebar-nav">
-        <a href="/" class="nav-item">홈</a>
+      <na class="sidebar-nav">
+  <a href="/" class="nav-item">홈</a>
+  <a href="/profile/" class="nav-item">마이페이지</a>
         <a href="/survey" class="nav-item">설문조사</a>
         <a href="/search" class="nav-item">정책 검색</a>
         <a href="/saved" class="nav-item">저장 목록</a>

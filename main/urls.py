@@ -33,4 +33,10 @@ urlpatterns = [
 
     path("calendar/", views.calendar_view, name="calendar"), # 캘린더 페이지
 
+    path('profile/', views.profile_view, name='profile'), # 마이페이지
+
+    path("saved/", views.saved_list, name="saved_list"), # 저장된 정책 목록 페이지
+
+    path("api/saved-policies/", views.get_saved_policies, name="get_saved_policies"), # 저장된 정책 데이터 API
+
 ]

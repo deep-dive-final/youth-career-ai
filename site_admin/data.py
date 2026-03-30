@@ -6,13 +6,18 @@ from utils.db import getMongoDbClient
 from datetime import datetime
 from bson import ObjectId
 # from sentence_transformers import SentenceTransformer
-# from openai import OpenAI
-import google.generativeai as genai
+from google import genai
+import os
+from dotenv import load_dotenv
 import site_admin.preprocess.codes as codes
 import site_admin.preprocess.sub_categories as sub_categories
 import site_admin.preprocess.submit_document as submit_document
 
 # API 정보
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+client = genai.Client(api_key=GEMINI_API_KEY)
 API_INFO = {
   "youth_center":{
     "url": "https://www.youthcenter.go.kr/go/ythip/getPlcy",
@@ -26,7 +31,6 @@ API_INFO = {
   }
 }
 
-genai.configure(api_key=settings.GEMINI_API_KEY)
 
 # API에서 데이터 가져오는 함수
 @retry(

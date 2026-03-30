@@ -1,8 +1,11 @@
 import re
+from google import genai
 import os
-import google.generativeai as genai  
+from dotenv import load_dotenv
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")  # 또는 settings.GEMINI_API_KEY
+load_dotenv() 
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") 
 
 def _strip_emoji(text: str) -> str:
     if not isinstance(text, str):
@@ -60,17 +63,18 @@ def embed_query_gemini(text: str) -> list[float]:
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY가 설정되어 있지 않습니다.")
 
-    genai.configure(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
     model_name = "models/gemini-embedding-001"
-    result = genai.embed_content(
-        model=model_name,
-        content=text,                 # ✅ query는 단일 문자열
-        output_dimensionality=3072,    # ✅ policy_vectors와 차원 일치
-        task_type="query",             # ✅ 검색용은 query
+    result = client.models.embed_content(
+        model="gemini-embedding-001", 
+        contents=text,
+        config={
+            "output_dimensionality": 3072,
+            "task_type": "RETRIEVAL_QUERY"  
+        }
     )
-    emb = result["embedding"]
-    return emb
+    return result.embeddings[0].values
 
 def build_prefilter_region_only(profile: dict) -> dict | None:
     """
