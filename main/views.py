@@ -1112,11 +1112,13 @@ def profile_view(request):
             current_profile = db['user_profiles'].find_one({"_id": current_profile['_id']})
             print(f"✅ 화면 갱신용 데이터 재로드 완료: {current_profile.get('updated_at')}")
 
-        saved_count = 0
+        saved_count = 0 
         if 'user_favorites' in db.list_collection_names():
-            saved_count = db['user_favorites'].count_documents({"user_id": ObjectId(raw_user_id)})
-
-        print(f"📊 프론트로 전달되는 최종 날짜: {current_profile.get('updated_at') if current_profile else '데이터 없음'}")
+            saved_count = db['user_favorites'].count_documents({
+                "user_id": {
+                    "$in": [str(raw_user_id), ObjectId(raw_user_id)]
+                }
+            })
 
         return render(request, "profile.html", {
             "profile": current_profile,  
